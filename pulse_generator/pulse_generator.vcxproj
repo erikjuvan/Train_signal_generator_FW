@@ -42,6 +42,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|VisualGDB'">
     <ClCompile>
       <CLanguageStandard>C99</CLanguageStandard>
+      <InputLanguage>C</InputLanguage>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|VisualGDB'">
@@ -55,7 +56,8 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
   <ItemGroup>
-    <ClCompile Include="pulse_generator.c" />
+    <ClCompile Include="main.c" />
+    <ClCompile Include="parse.c" />
     <ClCompile Include="usbd_cdc_if.c" />
     <ClCompile Include="usbd_conf.c" />
     <ClCompile Include="usbd_desc.c" />
@@ -151,6 +153,7 @@
     <ClCompile Include="$(BSP_ROOT)\STM32F4xxxx\STM32F4xx_HAL_Driver\Src\stm32f4xx_ll_usart.c" />
     <ClCompile Include="$(BSP_ROOT)\STM32F4xxxx\STM32F4xx_HAL_Driver\Src\stm32f4xx_ll_usb.c" />
     <ClCompile Include="$(BSP_ROOT)\STM32F4xxxx\STM32F4xx_HAL_Driver\Src\stm32f4xx_ll_utils.c" />
+    <ClInclude Include="main.h" />
     <ClInclude Include="usbd_cdc_if.h" />
     <ClInclude Include="usbd_conf.h" />
     <ClInclude Include="usbd_desc.h" />

@@ -288,6 +288,16 @@ int VCP_write(const void *pBuffer, int size)
 	if (USBD_CDC_TransmitPacket(&USBD_Device) != USBD_OK)
 		return 0;
 
+	// VCP problem with transmitting arrays sized as multiples of packet size.
+	if(!(size & CDC_DATA_FS_OUT_PACKET_SIZE - 1)) 
+	{ 
+		// send zero length packet
+		while(pCDC->TxState) {} //Wait for previous transfer
+		USBD_CDC_SetTxBuffer(&USBD_Device, (uint8_t *)pBuffer, 0);
+		if (USBD_CDC_TransmitPacket(&USBD_Device) != USBD_OK)
+			return 0;
+	}
+	
 	while (pCDC->TxState) {} //Wait until transfer is done
 	return size;
 }
