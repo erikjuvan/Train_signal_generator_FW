@@ -116,14 +116,10 @@ static void Insert(uint32_t ch_num, int ch_idx, int time_val, int time_idx) {
 static void Function_CENBL(char* str) {
 	str = strtok(NULL, Delims);  // first parameter
 	
-	if(str[0] == '0') {
-				// DISABLE		
+	if(str[0] == '0') { // DISABLE		
 		newSettings = 1;
 		Stop();
-	}
-	
-	else if(str[0] == '1') {
-			// ENABLE
+	} else if(str[0] == '1') { // ENABLE
 		if(needsCorrecting) {
 			CorrectValues();
 			DMA_Update(num_of_entries);
@@ -182,9 +178,8 @@ static void Function_CCHNL(char* str) {
 			 // Lowest value doesn't exist in time array
 			Insert(chNum, i_el, timeArray[i_el], 0);
 			continue;
-		}
-		else if (timeArray[i_el] > time[num_of_entries - 1]) {
-				// Highest value doesn't exist in time array
+		} else if (timeArray[i_el] > time[num_of_entries - 1]) {
+			// Highest value doesn't exist in time array
 			Insert(chNum, i_el, timeArray[i_el], num_of_entries);
 			continue;
 		}

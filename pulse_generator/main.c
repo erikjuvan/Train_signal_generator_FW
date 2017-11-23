@@ -49,37 +49,22 @@ const uint32_t GPIOPinArray[] = {
 
 // 0 - active high, 1 - active low
 const int IsGPIOReversePin[] = {
-	0,
-	  // GPIO_PIN_0
-	0,
-	  // GPIO_PIN_1
-	0,
-	  // GPIO_PIN_2
-	0,
-	  // GPIO_PIN_3
-	0,
-	  // GPIO_PIN_4
-	0, 
-	 // GPIO_PIN_5
-	0,
-	  // GPIO_PIN_6
-	0,
-	  // GPIO_PIN_7
-	0,
-	  // GPIO_PIN_8
-	0, 
-	 // GPIO_PIN_9
-	0,
-	  // GPIO_PIN_10
-	1, 
-	 // GPIO_PIN_11
-	1,
-	  // GPIO_PIN_12
-	1,
-	  // GPIO_PIN_13
-	1, 
-	 // GPIO_PIN_14
-	1  // GPIO_PIN_15
+	0,	// GPIO_PIN_0
+	0,	// GPIO_PIN_1
+	0,	// GPIO_PIN_2
+	0,	// GPIO_PIN_3
+	0,	// GPIO_PIN_4
+	0,	// GPIO_PIN_5
+	0,	// GPIO_PIN_6
+	0,	// GPIO_PIN_7
+	0,	// GPIO_PIN_8
+	0,	// GPIO_PIN_9
+	0,	// GPIO_PIN_10
+	1,	// GPIO_PIN_11
+	1,	// GPIO_PIN_12
+	1,	// GPIO_PIN_13
+	1,	// GPIO_PIN_14
+	1	// GPIO_PIN_15
 };
 
 uint32_t	pins[MAX_STATES] = { 0 };
