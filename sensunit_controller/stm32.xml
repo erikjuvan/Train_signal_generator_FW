@@ -8,8 +8,8 @@
   </ToolchainVersion>
   <BspID>com.sysprogs.arm.stm32</BspID>
   <BspVersion>4.5R2</BspVersion>
-  <McuID>STM32F407VG</McuID>
-  <MCUDefinitionFile>STM32F4xxxx/DeviceDefinitions/stm32f407xx.xml</MCUDefinitionFile>
+  <McuID>STM32F722VE</McuID>
+  <MCUDefinitionFile>STM32F7xxxx/DeviceDefinitions/stm32f722xx.xml</MCUDefinitionFile>
   <MCUProperties>
     <Entries>
       <KeyValue>
@@ -26,7 +26,7 @@
       </KeyValue>
       <KeyValue>
         <Key>com.sysprogs.toolchainoptions.arm.libnosys</Key>
-        <Value>--specs=nosys.specs</Value>
+        <Value />
       </KeyValue>
     </Entries>
   </MCUProperties>

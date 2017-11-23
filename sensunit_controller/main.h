@@ -1,7 +1,7 @@
 #pragma once
 
 // STM HAL Library
-#include <stm32f4xx_hal.h>
+#include <stm32f7xx_hal.h>
 
 #define WritePins(port, on, off) port->BSRR = ((uint32_t)on) | (((uint32_t)off) << 16U)
 #define SetPins(port, x) port->BSRR = (uint32_t)x

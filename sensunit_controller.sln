@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27004.2002
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pulse_generator", "pulse_generator\pulse_generator.vcxproj", "{20CD0917-7B8B-4866-8964-E59A64ECF8F7}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sensunit_controller", "sensunit_controller\sensunit_controller.vcxproj", "{9789DF72-391B-4E1C-9DCC-A736398C21D3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,15 +11,15 @@ Global
 		Release|VisualGDB = Release|VisualGDB
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{20CD0917-7B8B-4866-8964-E59A64ECF8F7}.Debug|VisualGDB.ActiveCfg = Debug|VisualGDB
-		{20CD0917-7B8B-4866-8964-E59A64ECF8F7}.Debug|VisualGDB.Build.0 = Debug|VisualGDB
-		{20CD0917-7B8B-4866-8964-E59A64ECF8F7}.Release|VisualGDB.ActiveCfg = Release|VisualGDB
-		{20CD0917-7B8B-4866-8964-E59A64ECF8F7}.Release|VisualGDB.Build.0 = Release|VisualGDB
+		{9789DF72-391B-4E1C-9DCC-A736398C21D3}.Debug|VisualGDB.ActiveCfg = Debug|VisualGDB
+		{9789DF72-391B-4E1C-9DCC-A736398C21D3}.Debug|VisualGDB.Build.0 = Debug|VisualGDB
+		{9789DF72-391B-4E1C-9DCC-A736398C21D3}.Release|VisualGDB.ActiveCfg = Release|VisualGDB
+		{9789DF72-391B-4E1C-9DCC-A736398C21D3}.Release|VisualGDB.Build.0 = Release|VisualGDB
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {DF9261CE-1787-4833-BE0A-47F08907B3B8}
+		SolutionGuid = {C8734CBC-DA0C-486E-904D-8C0B92663177}
 	EndGlobalSection
 EndGlobal

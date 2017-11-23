@@ -67,17 +67,17 @@
   * @{
   */
 
-static int8_t pulse_generator_Init     (void);
-static int8_t pulse_generator_DeInit   (void);
-static int8_t pulse_generator_Control  (uint8_t cmd, uint8_t* pbuf, uint16_t length);
-static int8_t pulse_generator_Receive  (uint8_t* pbuf, uint32_t *Len);
+static int8_t sensunit_controller_Init     (void);
+static int8_t sensunit_controller_DeInit   (void);
+static int8_t sensunit_controller_Control  (uint8_t cmd, uint8_t* pbuf, uint16_t length);
+static int8_t sensunit_controller_Receive  (uint8_t* pbuf, uint32_t *Len);
 
-USBD_CDC_ItfTypeDef USBD_CDC_pulse_generator_fops = 
+USBD_CDC_ItfTypeDef USBD_CDC_sensunit_controller_fops = 
 {
-  pulse_generator_Init,
-  pulse_generator_DeInit,
-  pulse_generator_Control,
-  pulse_generator_Receive
+  sensunit_controller_Init,
+  sensunit_controller_DeInit,
+  sensunit_controller_Control,
+  sensunit_controller_Receive
 };
 
 USBD_CDC_LineCodingTypeDef linecoding =
@@ -91,7 +91,7 @@ USBD_CDC_LineCodingTypeDef linecoding =
 /* Private functions ---------------------------------------------------------*/
 
 /**
-  * @brief  pulse_generator_Init
+  * @brief  sensunit_controller_Init
   *         Initializes the CDC media low layer
   * @param  None
   * @retval Result of the operation: USBD_OK if all operations are OK else USBD_FAIL
@@ -107,7 +107,7 @@ static struct
 
 char g_VCPInitialized;
 
-static int8_t pulse_generator_Init(void)
+static int8_t sensunit_controller_Init(void)
 {
 	USBD_CDC_SetRxBuffer(&USBD_Device, s_RxBuffer.Buffer);
 	g_VCPInitialized = 1;
@@ -115,12 +115,12 @@ static int8_t pulse_generator_Init(void)
 }
 
 /**
-  * @brief  pulse_generator_DeInit
+  * @brief  sensunit_controller_DeInit
   *         DeInitializes the CDC media low layer
   * @param  None
   * @retval Result of the operation: USBD_OK if all operations are OK else USBD_FAIL
   */
-static int8_t pulse_generator_DeInit(void)
+static int8_t sensunit_controller_DeInit(void)
 {
   /*
      Add your deinitialization code here 
@@ -130,14 +130,14 @@ static int8_t pulse_generator_DeInit(void)
 
 
 /**
-  * @brief  pulse_generator_Control
+  * @brief  sensunit_controller_Control
   *         Manage the CDC class requests
   * @param  Cmd: Command code            
   * @param  Buf: Buffer containing command data (request parameters)
   * @param  Len: Number of data to be sent (in bytes)
   * @retval Result of the operation: USBD_OK if all operations are OK else USBD_FAIL
   */
-static int8_t pulse_generator_Control  (uint8_t cmd, uint8_t* pbuf, uint16_t length)
+static int8_t sensunit_controller_Control  (uint8_t cmd, uint8_t* pbuf, uint16_t length)
 { 
   switch (cmd)
   {
@@ -199,7 +199,7 @@ static int8_t pulse_generator_Control  (uint8_t cmd, uint8_t* pbuf, uint16_t len
 }
 
 /**
-  * @brief  pulse_generator_Receive
+  * @brief  sensunit_controller_Receive
   *         Data received over USB OUT endpoint are sent over CDC interface 
   *         through this function.
   *           
@@ -214,7 +214,7 @@ static int8_t pulse_generator_Control  (uint8_t cmd, uint8_t* pbuf, uint16_t len
   * @param  Len: Number of data received (in bytes)
   * @retval Result of the operation: USBD_OK if all operations are OK else USBD_FAIL
   */
-static int8_t pulse_generator_Receive(uint8_t* Buf, uint32_t *Len)
+static int8_t sensunit_controller_Receive(uint8_t* Buf, uint32_t *Len)
 {
 	s_RxBuffer.Position = 0;
 	s_RxBuffer.Size = *Len;

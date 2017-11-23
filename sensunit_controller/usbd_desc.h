@@ -1,14 +1,14 @@
 /**
   ******************************************************************************
-  * @file    usbd_cdc_if_template.h
+  * @file    USB_Device/CDC_Standalone/Inc/usbd_desc.h
   * @author  MCD Application Team
-  * @version V2.4.0
-  * @date    28-February-2015
-  * @brief   Header for usbd_cdc_if_template.c file.
+  * @version V1.0.0
+  * @date    22-May-2015
+  * @brief   Header for usbd_desc.c module
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT 2015 STMicroelectronics</center></h2>
+  * <h2><center>&copy; COPYRIGHT(c) 2015 STMicroelectronics</center></h2>
   *
   * Licensed under MCD-ST Liberty SW License Agreement V2, (the "License");
   * You may not use this file except in compliance with the License.
@@ -26,25 +26,23 @@
   */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#pragma once
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef __USBD_DESC_H
+#define __USBD_DESC_H
 
 /* Includes ------------------------------------------------------------------*/
-#include "usbd_cdc.h"
+#include "usbd_def.h"
 
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
+#define         DEVICE_ID1          (0x1FFF7A10)
+#define         DEVICE_ID2          (0x1FFF7A14)
+#define         DEVICE_ID3          (0x1FFF7A18)
 
-extern USBD_CDC_ItfTypeDef  USBD_CDC_pulse_generator_fops;
-
+#define  USB_SIZ_STRING_SERIAL       0x1A
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
+extern USBD_DescriptorsTypeDef VCP_Desc;
 
-#ifdef __cplusplus
-}
-#endif
-
+#endif /* __USBD_DESC_H */
+ 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

@@ -1,21 +1,8 @@
-/*
-
-DMA2 is chosen because only only DMA2 streams are able to perform memory-to-memory transfers
-TIM1 is the trigger for DMA2
-TIM1 is in slave mode and is triggerd by TIM2. Reason for using TIM2 is that TIM1 is 16bit and TIM2 is 32bit
-TIM2 is where we change all the timing settings (ARR, PSC, CCR1), TIM1 stays at initial values.
-PSC		- timing resolution
-CCR1	- next DMA trigger time
-ARR		- sequence period
-
-*/
 
 #include <usbd_core.h>
 #include <usbd_cdc.h>
 #include "usbd_cdc_if.h"
 #include <usbd_desc.h>
-
-#include "main.h"
 
 USBD_HandleTypeDef USBD_Device;
 void SysTick_Handler(void);
@@ -25,6 +12,8 @@ extern PCD_HandleTypeDef hpcd;
 int VCP_read(void *pBuffer, int size);
 int VCP_write(const void *pBuffer, int size);
 extern char g_VCPInitialized;
+	
+#include "main.h"
 
 extern void ParseScript(char* script);
 
@@ -51,19 +40,19 @@ const uint32_t GPIOPinArray[] = {
 const int IsGPIOReversePin[] = {
 	0,	// GPIO_PIN_0
 	0,	// GPIO_PIN_1
-	0,	// GPIO_PIN_2
-	0,	// GPIO_PIN_3
-	0,	// GPIO_PIN_4
-	0,	// GPIO_PIN_5
+	0, 	// GPIO_PIN_2
+	0, 	// GPIO_PIN_3
+	0, 	// GPIO_PIN_4
+	0, 	// GPIO_PIN_5
 	0,	// GPIO_PIN_6
 	0,	// GPIO_PIN_7
-	0,	// GPIO_PIN_8
-	0,	// GPIO_PIN_9
-	0,	// GPIO_PIN_10
-	1,	// GPIO_PIN_11
+	0, 	// GPIO_PIN_8
+	0, 	// GPIO_PIN_9
+	0, 	// GPIO_PIN_10
+	1, 	// GPIO_PIN_11
 	1,	// GPIO_PIN_12
 	1,	// GPIO_PIN_13
-	1,	// GPIO_PIN_14
+	1, 	// GPIO_PIN_14
 	1	// GPIO_PIN_15
 };
 
@@ -77,37 +66,57 @@ void SysTick_Handler(void) {
 	HAL_IncTick();
 	HAL_SYSTICK_IRQHandler();
 }
-
 void OTG_FS_IRQHandler(void) {
 	HAL_PCD_IRQHandler(&hpcd);
 }
 
-// System clock is configured for the max: 168 MHz
-static void SystemClock_Config(void) {
+void SystemClock_Config(void) {
+	
 	RCC_ClkInitTypeDef RCC_ClkInitStruct;
 	RCC_OscInitTypeDef RCC_OscInitStruct;
-
-	__PWR_CLK_ENABLE();
-	__HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
-
+	RCC_PeriphCLKInitTypeDef PeriphClkInitStruct;
+  
+	/* Enable HSE Oscillator and activate PLL with HSE as source */
 	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
 	RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+	RCC_OscInitStruct.HSIState = RCC_HSI_OFF;
 	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
 	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-	RCC_OscInitStruct.PLL.PLLM = 8;
-	RCC_OscInitStruct.PLL.PLLN = 336;
+	RCC_OscInitStruct.PLL.PLLM = 25;
+	RCC_OscInitStruct.PLL.PLLN = 432;  
 	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-	RCC_OscInitStruct.PLL.PLLQ = 7;
-	HAL_RCC_OscConfig(&RCC_OscInitStruct);
-	
+	RCC_OscInitStruct.PLL.PLLQ = 9;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+		asm("bkpt 255");
+	}
+  
+	/* Activate the OverDrive to reach the 216 Mhz Frequency */
+	if (HAL_PWREx_EnableOverDrive() != HAL_OK) {
+		asm("bkpt 255");
+	}
+  
+	/* Select PLLSAI output as USB clock source */
+	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_CLK48;
+	PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48SOURCE_PLLSAIP;
+	PeriphClkInitStruct.PLLSAI.PLLSAIN = 384;
+	PeriphClkInitStruct.PLLSAI.PLLSAIQ = 7; 
+	PeriphClkInitStruct.PLLSAI.PLLSAIP = RCC_PLLSAIP_DIV8;
+	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct)  != HAL_OK) {
+		asm("bkpt 255");
+	}
+  
+	/* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2 
+	clocks dividers */
 	RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
-
 	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
 	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
 	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
 	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
-	HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);	
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7) != HAL_OK) {
+		asm("bkpt 255");
+	}
 }
+
 
 void SetInitialGPIOState() {
 	// Set intial state
@@ -147,17 +156,17 @@ static void DMA_Configure() {
 
 static void TIM_Configure() {
 	__TIM1_CLK_ENABLE();
-	TIM1->PSC = 0; 			// Set the Prescaler value
-	TIM1->ARR = 0; 			// Reload timer
+	TIM1->PSC = 0;   			// Set the Prescaler value
+	TIM1->ARR = 0;   			// Reload timer
 	TIM1->DIER |= TIM_DIER_TDE;
 	TIM1->SMCR |= TIM_SMCR_TS_0;
-	TIM1->SMCR |= TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1; 	// I don't understand why it has to be exactly so
+	TIM1->SMCR |= TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1;   	// I don't understand why it has to be exactly so
 	
 	__TIM2_CLK_ENABLE();
-	TIM2->PSC = 20; 			// Set the Prescaler value: 20, that comes to one tick being 249 ns
-	TIM2->ARR = 0xFFFF; 		// Reload timer
+	TIM2->PSC = 20;   			// Set the Prescaler value: 20, that comes to one tick being 249 ns
+	TIM2->ARR = 0xFFFF;   		// Reload timer
 	TIM2->CCR1 = 0x10;
-	TIM2->EGR = TIM_EGR_UG; 	// Reset the counter and generate update event		
+	TIM2->EGR = TIM_EGR_UG;   	// Reset the counter and generate update event		
 	TIM2->CR2 |= TIM_CR2_MMS_0 | TIM_CR2_MMS_1;
 }
 
@@ -197,7 +206,7 @@ void TIM_Update_PSC(uint32_t psc) {
 	TIM2->PSC = psc;
 }
 void TIM_Update_REGS() {	
-	TIM2->EGR = TIM_EGR_UG; 	// Update registers
+	TIM2->EGR = TIM_EGR_UG;   	// Update registers
 }
 
 void Stop() {
@@ -206,7 +215,7 @@ void Stop() {
 }
 
 void Start() {
-	PORT_CLK_DISABLE(); 	// Hack 2, to prevent triggering for an entire period because of hack 1. When first loading the program the problematic trigger still ocurs.
+	PORT_CLK_DISABLE();   	// Hack 2, to prevent triggering for an entire period because of hack 1. When first loading the program the problematic trigger still ocurs.
 	HAL_Delay(10);
 	DMA_Start();
 	TIM_Start();
@@ -214,7 +223,7 @@ void Start() {
 	// Hack 1, needed to prevent +1 offset between dma streams. Why... I do not know!
 	DMA_Stop();
 	DMA_Start();	
-	PORT_CLK_ENABLE(); 	// Hack 2
+	PORT_CLK_ENABLE();   	// Hack 2
 }
 
 static void Init() {
@@ -224,7 +233,7 @@ static void Init() {
 	USBD_Init(&USBD_Device, &VCP_Desc, 0);
 
 	USBD_RegisterClass(&USBD_Device, &USBD_CDC);
-	USBD_CDC_RegisterInterface(&USBD_Device, &USBD_CDC_pulse_generator_fops);
+	USBD_CDC_RegisterInterface(&USBD_Device, &USBD_CDC_sensunit_controller_fops);
 	USBD_Start(&USBD_Device);
 
 	while (USBD_Device.pClassData == 0) {
@@ -257,3 +266,5 @@ int main() {
 		}						
 	}
 }
+
+
