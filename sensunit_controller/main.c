@@ -1,3 +1,15 @@
+/*
+
+DMA2 is chosen because only only DMA2 streams are able to perform memory-to-memory transfers
+TIM1 is the trigger for DMA2
+TIM1 is in slave mode and is triggerd by TIM2. Reason for using TIM2 is that TIM1 is 16bit and TIM2 is 32bit
+TIM2 is where we change all the timing settings (ARR, PSC, CCR1), TIM1 stays at initial values.
+PSC		- timing resolution
+CCR1	- next DMA trigger time
+ARR		- sequence period
+
+*/
+
 
 #include <usbd_core.h>
 #include <usbd_cdc.h>
