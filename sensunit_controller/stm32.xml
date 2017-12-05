@@ -8,8 +8,8 @@
   </ToolchainVersion>
   <BspID>com.sysprogs.arm.stm32</BspID>
   <BspVersion>4.5R2</BspVersion>
-  <McuID>STM32F722VE</McuID>
-  <MCUDefinitionFile>STM32F7xxxx/DeviceDefinitions/stm32f722xx.xml</MCUDefinitionFile>
+  <McuID>STM32F746ZG</McuID>
+  <MCUDefinitionFile>STM32F7xxxx/DeviceDefinitions/stm32f746xx.xml</MCUDefinitionFile>
   <MCUProperties>
     <Entries>
       <KeyValue>

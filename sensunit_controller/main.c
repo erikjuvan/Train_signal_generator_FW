@@ -94,7 +94,7 @@ void SystemClock_Config(void) {
 	RCC_OscInitStruct.HSIState = RCC_HSI_OFF;
 	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
 	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-	RCC_OscInitStruct.PLL.PLLM = 25;
+	RCC_OscInitStruct.PLL.PLLM = 8;
 	RCC_OscInitStruct.PLL.PLLN = 432;  
 	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
 	RCC_OscInitStruct.PLL.PLLQ = 9;
@@ -109,10 +109,7 @@ void SystemClock_Config(void) {
   
 	/* Select PLLSAI output as USB clock source */
 	PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_CLK48;
-	PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48SOURCE_PLLSAIP;
-	PeriphClkInitStruct.PLLSAI.PLLSAIN = 384;
-	PeriphClkInitStruct.PLLSAI.PLLSAIQ = 7; 
-	PeriphClkInitStruct.PLLSAI.PLLSAIP = RCC_PLLSAIP_DIV8;
+	PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48SOURCE_PLL;
 	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct)  != HAL_OK) {
 		asm("bkpt 255");
 	}
@@ -175,7 +172,7 @@ static void TIM_Configure() {
 	TIM1->SMCR |= TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1;   	// I don't understand why it has to be exactly so
 	
 	__TIM2_CLK_ENABLE();
-	TIM2->PSC = 20;   			// Set the Prescaler value: 20, that comes to one tick being 249 ns
+	TIM2->PSC = 26;   			// Prescaler value 26, that comes to one tick being 249 ns
 	TIM2->ARR = 0xFFFF;   		// Reload timer
 	TIM2->CCR1 = 0x10;
 	TIM2->EGR = TIM_EGR_UG;   	// Reset the counter and generate update event		

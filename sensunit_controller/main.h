@@ -9,9 +9,9 @@
 
 #define MAX_STATES 50
 
-#define PORT				GPIOD
-#define PORT_CLK_ENABLE()	__GPIOD_CLK_ENABLE()	
-#define PORT_CLK_DISABLE()	__GPIOD_CLK_DISABLE()	
+#define PORT				GPIOE
+#define PORT_CLK_ENABLE()	__GPIOE_CLK_ENABLE()	
+#define PORT_CLK_DISABLE()	__GPIOE_CLK_DISABLE()	
 #define ALL_PINS			GPIO_PIN_All
 
 #define NUM_OF_CHANNELS	16
