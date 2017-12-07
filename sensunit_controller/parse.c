@@ -13,8 +13,8 @@ extern void DMA_Update(uint32_t n_entries);
 extern void Stop();
 extern void Start();
 
-extern uint32_t pins[];
-extern uint32_t time[];
+extern uint32_t g_pins[];
+extern uint32_t g_time[];
 extern uint32_t num_of_entries;
 
 extern const int IsGPIOReversePin[];
@@ -30,23 +30,23 @@ int timerPSC = 0;
 
 static void ClearSettings() {
 	for (int i = 0; i < MAX_STATES; i++) {
-		pins[i] = time[i] = 0;
+		g_pins[i] = g_time[i] = 0;
 	}
 	num_of_entries = 0;
 }
 
 void CorrectValues() {
-	// Shift values in the time array to correct for the inherent offset in the functionality 
-	int tmpTime = time[0];
+	// Shift values in the g_time array to correct for the inherent offset in the functionality 
+	int tmpTime = g_time[0];
 	for (int i = 0; i < num_of_entries - 1; i++) {
-		time[i] = time[i + 1];
+		g_time[i] = g_time[i + 1];
 	}
-	time[num_of_entries - 1] = tmpTime;
+	g_time[num_of_entries - 1] = tmpTime;
 	needsCorrecting = 0;
 		
-	// Increase the time array by magic number 4 which is tied to the magic number 20 in the PSC to get exactly 1us resolution
+	// Increase the g_time array by magic number 4 which is tied to the magic number 20 in the PSC to get exactly 1us resolution
 	for(int i = 0 ; i < num_of_entries ; i++) {
-		time[i] *= 4;
+		g_time[i] *= 4;
 	}		
 }
 
@@ -91,11 +91,11 @@ static void Update(uint32_t ch_num, int ch_idx, int time_val, int time_idx) {
 	
 	if (!IsGPIOReversePin[ch_num]) {
 			// Pin is NOT reversed
-		pins[time_idx] |= ch_idx % 2 == 0 ? gpio_pin : gpio_pin << 16;	
+		g_pins[time_idx] |= ch_idx % 2 == 0 ? gpio_pin : gpio_pin << 16;	
 	}
 	else {
 			// Pin is reversed
-		pins[time_idx] |= ch_idx % 2 == 1 ? gpio_pin : gpio_pin << 16;	
+		g_pins[time_idx] |= ch_idx % 2 == 1 ? gpio_pin : gpio_pin << 16;	
 	}
 }
 
@@ -103,11 +103,11 @@ static void Insert(uint32_t ch_num, int ch_idx, int time_val, int time_idx) {
 	if (num_of_entries >= MAX_STATES)
 		return;
 	for (int i = num_of_entries; i > time_idx; i--) {
-		time[i] = time[i - 1];
-		pins[i] = pins[i - 1];
+		g_time[i] = g_time[i - 1];
+		g_pins[i] = g_pins[i - 1];
 	}
-	time[time_idx] = time_val;
-	pins[time_idx] = 0;
+	g_time[time_idx] = time_val;
+	g_pins[time_idx] = 0;
 	Update(ch_num, ch_idx, time_val, time_idx);
 	num_of_entries++;
 }
@@ -146,14 +146,14 @@ static void Function_CPRDS(char* str) {
 		int num = atoi(str);
 		if (num > 0) {
 			timerARR = num;
-			TIM_Update_ARR(timerARR * 4); 	// Increase by magic number 4 which is tied to the magic number 20 in the PSC to get exactly 1us resolution
+			TIM_Update_ARR(timerARR * 4); 	// Increase by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
 			TIM_Update_REGS();
 		}
 	}
 }
 
 // Set Channel. Example CCHNL,0,140,240,32460,32560 // first param: channel number - coresponds to PIN numbers (0 - PIN0, 1 - PIN1, ...)
-													// second param: on time, third param: off time ... toggle so on
+													// second param: on g_time, third param: off g_time ... toggle so on
 static void Function_CCHNL(char* str) {	
 	int found = 0;
 	
@@ -174,12 +174,12 @@ static void Function_CCHNL(char* str) {
 	int elementsFound = StrToInts(str, timeArray, sizeof(timeArray) / sizeof(*timeArray));
 	
 	for (int i_el = 0; i_el < elementsFound; i_el++) {	
-		if (timeArray[i_el] < time[0]) {
-			 // Lowest value doesn't exist in time array
+		if (timeArray[i_el] < g_time[0]) {
+			 // Lowest value doesn't exist in g_time array
 			Insert(chNum, i_el, timeArray[i_el], 0);
 			continue;
-		} else if (timeArray[i_el] > time[num_of_entries - 1]) {
-			// Highest value doesn't exist in time array
+		} else if (timeArray[i_el] > g_time[num_of_entries - 1]) {
+			// Highest value doesn't exist in g_time array
 			Insert(chNum, i_el, timeArray[i_el], num_of_entries);
 			continue;
 		}
@@ -188,9 +188,9 @@ static void Function_CCHNL(char* str) {
 
 		found = 0;
 		for (int i_ent = 0; i_ent < num_of_entries; i_ent++) {
-			if (time[i_ent] == timeArray[i_el]) {
+			if (g_time[i_ent] == timeArray[i_el]) {
 					// Time already exists
-				Update(chNum, i_el, time[i_ent], i_ent);
+				Update(chNum, i_el, g_time[i_ent], i_ent);
 				found = 1;
 				break;
 			}
@@ -200,7 +200,7 @@ static void Function_CCHNL(char* str) {
 		if(!found) {			
 			int idx = 0;
 			for (idx = 0; idx < num_of_entries; idx++) {
-				if (time[idx] > timeArray[i_el])
+				if (g_time[idx] > timeArray[i_el])
 					break;
 			}
 			Insert(chNum, i_el, timeArray[i_el], idx);

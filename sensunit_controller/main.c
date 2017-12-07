@@ -1,20 +1,19 @@
 /*
-
 DMA2 is chosen because only only DMA2 streams are able to perform memory-to-memory transfers
 TIM1 is the trigger for DMA2
 TIM1 is in slave mode and is triggerd by TIM2. Reason for using TIM2 is that TIM1 is 16bit and TIM2 is 32bit
 TIM2 is where we change all the timing settings (ARR, PSC, CCR1), TIM1 stays at initial values.
 PSC		- timing resolution
-CCR1	- next DMA trigger time
+CCR1	- next DMA trigger g_time
 ARR		- sequence period
-
 */
-
 
 #include <usbd_core.h>
 #include <usbd_cdc.h>
 #include "usbd_cdc_if.h"
 #include <usbd_desc.h>
+
+#include "main.h"
 
 USBD_HandleTypeDef USBD_Device;
 void SysTick_Handler(void);
@@ -24,9 +23,6 @@ extern PCD_HandleTypeDef hpcd;
 int VCP_read(void *pBuffer, int size);
 int VCP_write(const void *pBuffer, int size);
 extern char g_VCPInitialized;
-	
-#include "main.h"
-
 extern void ParseScript(char* script);
 
 const uint32_t GPIOPinArray[] = {
@@ -68,11 +64,41 @@ const int IsGPIOReversePin[] = {
 	1	// GPIO_PIN_15
 };
 
-uint32_t	pins[MAX_STATES] = { 0 };
-uint32_t	time[MAX_STATES] = { 0 };
+uint32_t	g_pins[MAX_STATES] = { 0 };
+uint32_t	g_time[MAX_STATES] = { 0 };
 uint32_t	num_of_entries = 0;
 
-// IRQ
+
+// Debug
+/////////////////////////////////////
+
+// Debug GPIO
+#define DEBUG_PORT		GPIOF
+#define DEBUG_PIN		GPIO_PIN_8
+#define DEBUG_CLK()		__GPIOF_CLK_ENABLE()
+#define DEBUG_SET()		DEBUG_PORT->BSRR = DEBUG_PIN
+#define DEBUG_RESET()	DEBUG_PORT->BSRR = DEBUG_PIN << 16
+
+// printf functionality
+/////////////////////////////////////
+#include<sys/stat.h>
+int _fstat (int fd, struct stat *pStat) {
+	pStat->st_mode = S_IFCHR;
+	return 0;
+}
+int _close(int a) { return -1; }
+int _write (int fd, char *pBuffer, int size) { return VCP_write(pBuffer, size); }
+int _isatty (int fd) { return 1; }
+int _lseek(int a, int b, int c) { return -1; }
+int _read (int fd, char *pBuffer, int size) {
+	for (;;) {
+		int done = VCP_read(pBuffer, size);
+		if (done) return done;
+	}
+}
+/////////////////////////////////////
+
+// IRQs
 /////////////////////////////////////
 void SysTick_Handler(void) {
 	HAL_IncTick();
@@ -81,8 +107,9 @@ void SysTick_Handler(void) {
 void OTG_FS_IRQHandler(void) {
 	HAL_PCD_IRQHandler(&hpcd);
 }
+/////////////////////////////////////
 
-void SystemClock_Config(void) {
+static void SystemClock_Config(void) {
 	
 	RCC_ClkInitTypeDef RCC_ClkInitStruct;
 	RCC_OscInitTypeDef RCC_OscInitStruct;
@@ -127,7 +154,7 @@ void SystemClock_Config(void) {
 }
 
 
-void SetInitialGPIOState() {
+static void SetInitialGPIOState() {
 	// Set intial state
 	for(int i = 0 ; i < NUM_OF_CHANNELS ; i++) {
 		HAL_GPIO_WritePin(PORT, GPIOPinArray[i], (GPIO_PinState) IsGPIOReversePin[i]);
@@ -146,58 +173,80 @@ static void GPIO_Configure() {
 	HAL_GPIO_Init(PORT, &GPIO_InitStructure);
 	
 	SetInitialGPIOState();
+	
+	// Debug
+	DEBUG_CLK();
+	GPIO_InitStructure.Pin = DEBUG_PIN;
+	HAL_GPIO_Init(DEBUG_PORT, &GPIO_InitStructure);
 }
 
+
+// DMA
+/////////////////////////////////////
 static void DMA_Configure() {
 	__DMA2_CLK_ENABLE();
 	DMA2_Stream0->NDTR = num_of_entries;
-	DMA2_Stream0->M0AR = (uint32_t) pins;
+	DMA2_Stream0->M0AR = (uint32_t) g_pins;
 	DMA2_Stream0->PAR = (uint32_t) &PORT->BSRR;
 	DMA2_Stream0->CR = DMA_CHANNEL_6 | DMA_MBURST_SINGLE | DMA_PBURST_SINGLE | DMA_PRIORITY_VERY_HIGH | DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 |
 		DMA_MINC_ENABLE | DMA_CIRCULAR | DMA_MEMORY_TO_PERIPH;
 	
 	DMA2_Stream4->NDTR = num_of_entries;
-	DMA2_Stream4->M0AR = (uint32_t) time;
+	DMA2_Stream4->M0AR = (uint32_t) g_time;
 	DMA2_Stream4->PAR = (uint32_t) &TIM2->CCR1;
 	DMA2_Stream4->CR = DMA_CHANNEL_6 | DMA_MBURST_SINGLE | DMA_PBURST_SINGLE | DMA_PRIORITY_HIGH | DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 |
 		DMA_MINC_ENABLE | DMA_CIRCULAR | DMA_MEMORY_TO_PERIPH;
-}
-
-static void TIM_Configure() {
-	__TIM1_CLK_ENABLE();
-	TIM1->PSC = 0;   			// Set the Prescaler value
-	TIM1->ARR = 0;   			// Reload timer
-	TIM1->DIER |= TIM_DIER_TDE;
-	TIM1->SMCR |= TIM_SMCR_TS_0;
-	TIM1->SMCR |= TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1;   	// I don't understand why it has to be exactly so
-	
-	__TIM2_CLK_ENABLE();
-	TIM2->PSC = 26;   			// Prescaler value 26, that comes to one tick being 249 ns
-	TIM2->ARR = 0xFFFF;   		// Reload timer
-	TIM2->CCR1 = 0x10;
-	TIM2->EGR = TIM_EGR_UG;   	// Reset the counter and generate update event		
-	TIM2->CR2 |= TIM_CR2_MMS_0 | TIM_CR2_MMS_1;
 }
 
 static void DMA_Start() {
 	DMA2_Stream0->CR |= DMA_SxCR_EN;
 	DMA2_Stream4->CR |= DMA_SxCR_EN;		
 	
-	while (!(DMA2_Stream0->CR & DMA_SxCR_EN) || !(DMA2_Stream4->CR & DMA_SxCR_EN))
-		;	// wait for CE to be read as 1
+	while (!(DMA2_Stream0->CR & DMA_SxCR_EN) || !(DMA2_Stream4->CR & DMA_SxCR_EN)) ;	// wait for CE to be read as 1
 }
 
-static void DMA_Stop() {	
+static void DMA_Stop() {
 	DMA2_Stream0->CR &= ~DMA_SxCR_EN;
 	DMA2_Stream4->CR &= ~DMA_SxCR_EN;		
 
-	while (DMA2_Stream0->CR & DMA_SxCR_EN || DMA2_Stream4->CR & DMA_SxCR_EN)
-		;	// wait for CE to be read as 0
+	while (DMA2_Stream0->CR & DMA_SxCR_EN || DMA2_Stream4->CR & DMA_SxCR_EN) ;	// wait for CE to be read as 0
 }
 
 void DMA_Update(uint32_t n_entries) {
 	DMA2_Stream0->NDTR = n_entries;
 	DMA2_Stream4->NDTR = n_entries;
+}
+/////////////////////////////////////
+
+// TIM
+/////////////////////////////////////
+static void TIM_Configure() {
+	// TIM2 has to be configured before TIM1 otherwise TIM2 causes TIM1 IRQ when executing TIM2->EGR = TIM_EGR_UG;
+	__TIM2_CLK_ENABLE();
+	TIM2->PSC = 26;   			// Prescaler value 26, that comes to one tick being 249 ns
+	TIM2->ARR = 0xFFFF;   		// Reload timer
+	TIM2->CCR1 = 1;		
+	TIM2->CR2 |= TIM_CR2_MMS_0 | TIM_CR2_MMS_1;
+	TIM2->EGR = TIM_EGR_UG;   	// Reset the counter and generate update event
+	TIM2->SR = 0;	// Clear interrupts
+	
+	__TIM1_CLK_ENABLE();
+	TIM1->DIER |= TIM_DIER_TDE;
+	TIM1->SMCR |= TIM_SMCR_TS_0;
+	TIM1->SMCR |= TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1;   	// I don't completely understand why it has to be exactly so	
+		
+	/* Use for testing 
+	// IRQ enable
+	TIM1->DIER |= TIM_DIER_TIE;
+	HAL_NVIC_SetPriority(TIM1_TRG_COM_TIM11_IRQn, 1, 0);
+	HAL_NVIC_EnableIRQ(TIM1_TRG_COM_TIM11_IRQn);
+	
+	// IRQ handler
+	void TIM1_TRG_COM_TIM11_IRQHandler() {	
+		TIM1->SR = ~TIM_DIER_TIE;
+		asm("nop");
+	}	
+	*/
 }
 
 static void TIM_Start() {
@@ -215,24 +264,27 @@ void TIM_Update_PSC(uint32_t psc) {
 	TIM2->PSC = psc;
 }
 void TIM_Update_REGS() {	
-	TIM2->EGR = TIM_EGR_UG;   	// Update registers
+	// ORDER OF STATEMENTS MATTERS!!!
+	TIM2->CCR1 = 1;
+	TIM2->EGR = TIM_EGR_UG;		
 }
+/////////////////////////////////////
 
 void Stop() {
-	//TIM_Stop();	// Stopping timer for some reason inverts the output sometimes (no idea why)
-	DMA_Stop();
+	// ORDER OF FUNCTION CALLS MATTERS!!!
+	TIM_Stop();
+	DMA_Stop();	
+	TIM_Update_REGS();
+	
+	SetInitialGPIOState();
+	HAL_Delay(100);
 }
 
 void Start() {
-	PORT_CLK_DISABLE();   	// Hack 2, to prevent triggering for an entire period because of hack 1. When first loading the program the problematic trigger still ocurs.
-	HAL_Delay(10);
 	DMA_Start();
-	TIM_Start();
-	
-	// Hack 1, needed to prevent +1 offset between dma streams. Why... I do not know!
-	DMA_Stop();
-	DMA_Start();	
-	PORT_CLK_ENABLE();   	// Hack 2
+	TIM_Start();	
+	DEBUG_SET();
+	DEBUG_RESET();
 }
 
 static void Init() {
@@ -260,13 +312,12 @@ int main() {
 	Init();	
 		
 	while (1) {						
-		// Do while loop with delay, so that entire message is read before being parsed
-		do {
+		
+		do {	// Do while loop with delay, so that entire message is read before being parsed
 			tmp = VCP_read(&rxBuf[read], sizeof(rxBuf) - read);
 			read += tmp;
 			HAL_Delay(10);
-		} while (tmp)
-			;		
+		} while (tmp);		
 		
 		if (read > 0) {					
 			ParseScript((char*)rxBuf);
