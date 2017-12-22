@@ -282,9 +282,7 @@ void Stop() {
 
 void Start() {
 	DMA_Start();
-	TIM_Start();	
-	DEBUG_SET();
-	DEBUG_RESET();
+	TIM_Start();
 }
 
 static void Init() {
