@@ -7,9 +7,9 @@
     <Revision>2</Revision>
   </ToolchainVersion>
   <BspID>com.sysprogs.arm.stm32</BspID>
-  <BspVersion>4.5R2</BspVersion>
-  <McuID>STM32F746ZG</McuID>
-  <MCUDefinitionFile>STM32F7xxxx/DeviceDefinitions/stm32f746xx.xml</MCUDefinitionFile>
+  <BspVersion>4.6R2</BspVersion>
+  <McuID>STM32F745VE</McuID>
+  <MCUDefinitionFile>STM32F7xxxx/DeviceDefinitions/stm32f745xx.xml</MCUDefinitionFile>
   <MCUProperties>
     <Entries>
       <KeyValue>
@@ -19,6 +19,10 @@
       <KeyValue>
         <Key>com.sysprogs.bspoptions.arm.floatmode</Key>
         <Value>-mfloat-abi=hard</Value>
+      </KeyValue>
+      <KeyValue>
+        <Key>com.sysprogs.mcuoptions.ignore_startup_file</Key>
+        <Value />
       </KeyValue>
       <KeyValue>
         <Key>com.sysprogs.toolchainoptions.arm.libctype</Key>

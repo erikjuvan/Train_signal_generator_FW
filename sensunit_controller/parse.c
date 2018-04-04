@@ -44,7 +44,7 @@ void CorrectValues() {
 	g_time[num_of_entries - 1] = tmpTime;
 	needsCorrecting = 0;
 		
-	// Increase the g_time array by magic number 4 which is tied to the magic number 20 in the PSC to get exactly 1us resolution
+	// Increase the g_time array by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
 	for(int i = 0 ; i < num_of_entries ; i++) {
 		g_time[i] *= 4;
 	}		
@@ -168,7 +168,7 @@ static void Function_CCHNL(char* str) {
 	unsigned int chNum = atoi(str);
 	if (chNum >= NUM_OF_CHANNELS) return;
 	
-	str = strtok(NULL, "\n\r");	
+	str = strtok(NULL, "\n\r");
 		
 	int timeArray[20] = { 0 };	
 	int elementsFound = StrToInts(str, timeArray, sizeof(timeArray) / sizeof(*timeArray));
@@ -212,14 +212,16 @@ static void Function_CCHNL(char* str) {
 /* Example program
 
 // ks_script.txt 
-// <- komentar
-// MAX dolzina scripta = 1024 bytov
+// <- comment
+// MAX script length = 1024 bytes
 
 CENBL,0
-CPRDS,1000000,65000		// first param: Timer base frequency [Hz], second param: Timer Period [us]
+// first param: Timer base frequency [Hz], second param: Timer Period [us]
+CPRDS,1000000,65000		
 CCHNL,0,140,240,32460,32560
 CCHNL,5,490,502
 CCHNL,6,752,762
+// Ch 2 - trigger out
 CCHNL,2,32810,32830
 CCHNL,3,33080,33100
 CCHNL,7,100,220,470,13970,32420,32540,32790,46290
@@ -236,7 +238,7 @@ void ParseScript(char* script) {
 	while (str != NULL) {
 		
 		if (strncmp(str, "//", 2) == 0) {
-			 // COMMENT (single line)
+			// COMMENT (single line) (entire line only)
 			str = strtok(NULL, "\n");
 		}
 		else if (strncmp(str, "CENBL", 5) == 0) {
