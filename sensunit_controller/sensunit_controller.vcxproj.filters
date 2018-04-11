@@ -705,9 +705,15 @@
     <ClInclude Include="$(BSP_ROOT)\STM32F7xxxx\STM32F7xx_HAL_Driver\Inc\Legacy\stm32f7xx_hal_can_legacy.h">
       <Filter>Header files\Device-specific files\HAL</Filter>
     </ClInclude>
+    <ClCompile Include="uart.c">
+      <Filter>Source files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="uart.h">
       <Filter>Header files</Filter>
     </ClInclude>
   </ItemGroup>

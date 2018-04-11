@@ -14,6 +14,7 @@ ARR		- sequence period
 #include <usbd_desc.h>
 
 #include "main.h"
+#include "uart.h"
 
 USBD_HandleTypeDef USBD_Device;
 void SysTick_Handler(void);
@@ -264,10 +265,7 @@ void Start() {
 	TIM_Start();
 }
 
-static void Init() {
-	HAL_Init();
-	SystemClock_Config();
-
+void USB_Init() {
 	USBD_Init(&USBD_Device, &VCP_Desc, 0);
 
 	USBD_RegisterClass(&USBD_Device, &USBD_CDC);
@@ -276,29 +274,29 @@ static void Init() {
 
 	while (USBD_Device.pClassData == 0) {
 	}
+}
+
+static void Init() {
+	HAL_Init();
+	SystemClock_Config();
 	
+	USB_Init();
 	GPIO_Configure();
 	DMA_Configure();
 	TIM_Configure();
+	UART_init();
 }
 
-int main() {
-	int read = 0, tmp = 0;
+int main() {	
 	uint8_t rxBuf[1024] = { 0 };
 	
 	Init();
 
 	while (1) {						
-		
-		do {	// Do while loop with delay, so that entire message is read before being parsed
-			tmp = VCP_read(&rxBuf[read], sizeof(rxBuf) - read);
-			read += tmp;
-			HAL_Delay(10);
-		} while (tmp);		
+		int read = UART_read(rxBuf, sizeof(rxBuf));
 		
 		if (read > 0) {					
-			ParseScript((char*)rxBuf);
-			VCP_write("Sucess...", 9);
+			ParseScript((char*)rxBuf);	
 			memset(rxBuf, 0, read);
 			read = 0;
 		}						
