@@ -2,6 +2,8 @@
 
 #include "stm32f7xx_hal.h"
 
+#define UART_DEVICE_ID	1
+
 #ifndef UART_DEVICE_ID
 #error "UART_DEVICE_ID not defined"
 #endif //UART_DEVICE_ID

@@ -288,15 +288,25 @@ static void Init() {
 }
 
 int main() {	
+	int read = 0, tmp = 0;
 	uint8_t rxBuf[1024] = { 0 };
 	
 	Init();
 
 	while (1) {						
-		int read = UART_read(rxBuf, sizeof(rxBuf));
+		
+		// UART
+		//int read = UART_read(rxBuf, sizeof(rxBuf));
+		
+		// USB
+		do {	// Do while loop with delay, so that entire message is read before being parsed		
+			tmp = VCP_read(&rxBuf[read], sizeof(rxBuf) - read);
+			read += tmp;
+			HAL_Delay(10);
+		} while (tmp);
 		
 		if (read > 0) {					
-			ParseScript((char*)rxBuf);	
+			ParseScript((char*)rxBuf);
 			memset(rxBuf, 0, read);
 			read = 0;
 		}						
