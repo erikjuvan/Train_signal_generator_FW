@@ -15,6 +15,7 @@ ARR		- sequence period
 
 #include "main.h"
 #include "uart.h"
+#include "protocol.h"
 
 USBD_HandleTypeDef USBD_Device;
 void SysTick_Handler(void);
@@ -68,6 +69,8 @@ const int IsGPIOReversePin[] = {
 uint32_t	g_pins[MAX_STATES] = { 0 };
 uint32_t	g_time[MAX_STATES] = { 0 };
 uint32_t	num_of_entries = 0;
+
+int usb_live = 0;
 
 // printf functionality
 /////////////////////////////////////
@@ -265,51 +268,62 @@ void Start() {
 	TIM_Start();
 }
 
-void USB_Init() {
+static void USB_Init() {
 	USBD_Init(&USBD_Device, &VCP_Desc, 0);
 
 	USBD_RegisterClass(&USBD_Device, &USBD_CDC);
 	USBD_CDC_RegisterInterface(&USBD_Device, &USBD_CDC_sensunit_controller_fops);
 	USBD_Start(&USBD_Device);
-
+	
+	// Wait for USB to Initialize
 	while (USBD_Device.pClassData == 0) {
 	}
+	
+	usb_live = 1;
+}
+
+static void USB_Deinit() {
+	USBD_Stop(&USBD_Device);
+	USBD_DeInit(&USBD_Device);
+	
+	usb_live = 0;
 }
 
 static void Init() {
 	HAL_Init();
-	SystemClock_Config();
-	
-	USB_Init();
+	SystemClock_Config();	
+	//USB_Init();	// enable it with UART if neccessary
 	GPIO_Configure();
 	DMA_Configure();
 	TIM_Configure();
-	UART_init();
+	UART_Init();
 }
 
 int main() {	
-	int read = 0, tmp = 0;
-	uint8_t rxBuf[1024] = { 0 };
+	uint8_t rxBuf[1024] = {0};
+	uint8_t txBuf[10] = {0};
+	int tmp = 0, read = 0;
 	
 	Init();
 
-	while (1) {						
+	while (1) {
 		
-		// UART
-		//int read = UART_read(rxBuf, sizeof(rxBuf));
-		
-		// USB
-		do {	// Do while loop with delay, so that entire message is read before being parsed		
-			tmp = VCP_read(&rxBuf[read], sizeof(rxBuf) - read);
-			read += tmp;
-			HAL_Delay(10);
+		do {
+			if (usb_live)	tmp = VCP_read(&rxBuf[read], sizeof(rxBuf) - read);
+			else 			tmp = Protocol_Read(&rxBuf[read], sizeof(rxBuf) - read);
+	
+			if (tmp > 0) {
+				HAL_Delay(1);
+				read += tmp;
+			}
 		} while (tmp);
 		
-		if (read > 0) {					
+		if (read > 0) {
 			ParseScript((char*)rxBuf);
 			memset(rxBuf, 0, read);
 			read = 0;
-		}						
+		}
+		
 	}
 }
 

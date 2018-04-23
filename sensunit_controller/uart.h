@@ -2,15 +2,6 @@
 
 #include "stm32f7xx_hal.h"
 
-#define UART_DEVICE_ID	1
-
-#ifndef UART_DEVICE_ID
-#error "UART_DEVICE_ID not defined"
-#endif //UART_DEVICE_ID
-
-
-#define UART_FRAME_START	0xFFFF
-
 #define UART_BUFFER_SIZE	1024
 
 #define USARTx                           USART3
@@ -33,6 +24,7 @@
 #define USARTx_IRQn                      USART3_IRQn
 #define USARTx_IRQHandler                USART3_IRQHandler
 
-void UART_init();
-int UART_read(uint8_t* data, int max_len);
-int UART_write(uint8_t* data, int size);
+void UART_Init();
+int UART_Read(uint8_t* data, int max_len);
+int UART_Write(uint8_t* data, int size);
+int UART_BytesToRead();

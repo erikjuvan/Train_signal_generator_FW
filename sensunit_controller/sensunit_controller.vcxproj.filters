@@ -708,12 +708,18 @@
     <ClCompile Include="uart.c">
       <Filter>Source files</Filter>
     </ClCompile>
+    <ClCompile Include="protocol.c">
+      <Filter>Source files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
       <Filter>Header files</Filter>
     </ClInclude>
     <ClInclude Include="uart.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="protocol.h">
       <Filter>Header files</Filter>
     </ClInclude>
   </ItemGroup>
