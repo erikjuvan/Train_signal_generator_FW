@@ -1,46 +1,41 @@
 #include "protocol.h"
 #include "uart.h"
+#include <string.h>
 
-int8_t	Device_Address = 0;
+extern uint8_t Device_Address;
+
+static uint8_t rx_buffer[1024];
+static uint16_t rx_buffer_size;
+
+void UART_RX_Complete_Callback(uint8_t* data, int size) {
+	rx_buffer_size = size > sizeof(rx_buffer) ? sizeof(rx_buffer) : size;
+	memcpy(rx_buffer, data, rx_buffer_size);	
+}
 
 int Protocol_Read(uint8_t* data, int max_len) {
-	int read = 0, tmp = 0, byte_cnt = 0;
-	uint8_t buf[UART_BUFFER_SIZE];
 	
-	do {
-		tmp = UART_Read(&buf[read], UART_BUFFER_SIZE - read);
-		if (tmp > 0) {
-			HAL_Delay(1);
-			read += tmp;
-		}
-	} while (tmp);
+	if (rx_buffer_size <= 0) return 0;
 	
-	for (int i = 0, data_for_me = 0; i < read; ++i) {
-		uint8_t tmp_data = buf[i];
+	int byte_cnt = 0;
+	for (int i = 0; i < rx_buffer_size; ++i) {
+		uint8_t tmp_data = rx_buffer[i];
 		
-		if (tmp_data & 0x80) {	// address byte
-			if (((tmp_data & 0x7F) == Device_Address) || ((tmp_data & 0x7F) == BROADCAST_ADDRESS)) {
-				data_for_me = 1;
-				byte_cnt = 0;
-			} else {
-				data_for_me = 0;
+		if ((tmp_data & 0x30) == 0x30) { // Data
+			if (byte_cnt % 2 == 0)
+				data[byte_cnt / 2] = (tmp_data & 0x0F) << 4;
+			else 
+				data[byte_cnt / 2] |= tmp_data & 0x0F;
+			byte_cnt++;
+			if ((byte_cnt / 2) >= max_len) { // input data buffer full
+				break;
 			}
-		} else if (data_for_me) {
-			if ((tmp_data & 0x30) == 0x30) { // Data
-				if (byte_cnt % 2 == 0)
-					data[byte_cnt / 2] = (tmp_data & 0x0F) << 4;
-				else 
-					data[byte_cnt / 2] |= tmp_data & 0x0F;
-				byte_cnt++;
-				if ((byte_cnt / 2) >= max_len) { // input data buffer full
-					break;
-				}
-			} else if ((tmp_data & 0x10) == 0x10) {	// Command
-				if (tmp_data == 0x1B) {	// Escape
-				}
+		} else if ((tmp_data & 0x10) == 0x10) {	// Command
+			if (tmp_data == 0x1B) {	// Escape
 			}
 		}
 	}
+	
+	rx_buffer_size = 0;
 	
 	if (byte_cnt % 2)
 		return -1;

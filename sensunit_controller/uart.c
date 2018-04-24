@@ -1,12 +1,14 @@
 #include <string.h>
 #include "uart.h"
 
-UART_HandleTypeDef UartHandle;
+const uint8_t CharacterMatch = 0x3A;
+static UART_HandleTypeDef UartHandle;
+
+uint8_t	Device_Address = 0;
 
 static struct {
 	uint8_t data[UART_BUFFER_SIZE];
 	int		i;
-	int		overflow;
 } uart_rx_buffer;
 
 static struct {
@@ -19,10 +21,13 @@ void USARTx_IRQHandler() {
 	uint32_t cr1its = USARTx->CR1;
 
 	if ((isrflags & USART_ISR_RXNE) && (cr1its & USART_CR1_RXNEIE)) {
-		if (uart_rx_buffer.i < UART_BUFFER_SIZE) {
-			uart_rx_buffer.data[uart_rx_buffer.i++] = USARTx->RDR;
-		} else {
-			uart_rx_buffer.overflow = 1;
+		uint8_t rx_byte = USARTx->RDR;
+		if (rx_byte == CharacterMatch) {
+			HAL_MultiProcessor_EnterMuteMode(&UartHandle);
+			UART_RX_Complete_Callback(uart_rx_buffer.data, uart_rx_buffer.i);
+			uart_rx_buffer.i = 0;
+		} else if (uart_rx_buffer.i < UART_BUFFER_SIZE) {
+			uart_rx_buffer.data[uart_rx_buffer.i++] = rx_byte;
 		}
 	}
 
@@ -68,6 +73,13 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart) {
 	HAL_GPIO_Init(USARTx_RX_GPIO_PORT, &GPIO_InitStruct);		
 }
 
+void UART_Set_Address(uint8_t addr) {
+	if (addr <= 127) {
+		Device_Address = addr;
+		MODIFY_REG(USARTx->CR2, USART_CR2_ADD, ((uint32_t)Device_Address << UART_CR2_ADDRESS_LSB_POS));
+	}	
+}
+
 void UART_Init() {
 	UartHandle.Instance        = USARTx;
 
@@ -77,38 +89,16 @@ void UART_Init() {
 	UartHandle.Init.Parity     = UART_PARITY_NONE;
 	UartHandle.Init.HwFlowCtl  = UART_HWCONTROL_NONE;
 	UartHandle.Init.Mode       = UART_MODE_TX_RX;
-	UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
+	UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;		
 	
-	HAL_UART_Init(&UartHandle);	
+	HAL_MultiProcessor_Init(&UartHandle, Device_Address, UART_WAKEUPMETHOD_ADDRESSMARK);
+	HAL_MultiProcessor_EnableMuteMode(&UartHandle);
+	HAL_MultiProcessor_EnterMuteMode(&UartHandle);
 	
 	HAL_NVIC_SetPriority(USARTx_IRQn, 0, 1);
 	HAL_NVIC_EnableIRQ(USARTx_IRQn);
 	
-	USARTx->CR1 |= USART_CR1_RXNEIE;
-}
-
-int UART_CheckAndClearOverflow() {
-	int of = uart_rx_buffer.overflow;
-	uart_rx_buffer.overflow = 0;
-	return of;
-}
-
-int UART_BytesToRead() {
-	return uart_rx_buffer.i;
-}
-
-int UART_Read(uint8_t* data, int max_len) {
-	if (uart_rx_buffer.i <= 0) {
-		return 0;
-	} else {	// There is data
-		USARTx->CR1 &= ~USART_CR1_RXNEIE;
-		int len = uart_rx_buffer.i > max_len ? max_len : uart_rx_buffer.i;
-	
-		memcpy(data, uart_rx_buffer.data, len);
-		uart_rx_buffer.i = 0;
-		USARTx->CR1 |= USART_CR1_RXNEIE;
-		return len;
-	}
+	USARTx->CR1 |= USART_CR1_RXNEIE;		
 }
 
 int UART_Write(uint8_t* data, int size) {
@@ -125,3 +115,9 @@ int UART_Write(uint8_t* data, int size) {
 	return ret;
 }
 
+
+// Weak callback functions - to be implemented by the user in protocol specific section
+__weak void UART_RX_Complete_Callback(uint8_t* data, int size) {
+	UNUSED(data);
+	UNUSED(size);
+}

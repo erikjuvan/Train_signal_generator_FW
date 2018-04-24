@@ -309,13 +309,12 @@ int main() {
 	while (1) {
 		
 		do {
-			if (usb_live)	tmp = VCP_read(&rxBuf[read], sizeof(rxBuf) - read);
-			else 			tmp = Protocol_Read(&rxBuf[read], sizeof(rxBuf) - read);
+			if (usb_live)	
+				tmp = VCP_read(&rxBuf[read], sizeof(rxBuf) - read);
+			else 			
+				tmp = Protocol_Read(&rxBuf[read], sizeof(rxBuf) - read);
 	
-			if (tmp > 0) {
-				HAL_Delay(1);
-				read += tmp;
-			}
+			read += tmp;
 		} while (tmp);
 		
 		if (read > 0) {
