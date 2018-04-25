@@ -15,7 +15,7 @@ ARR		- sequence period
 
 #include "main.h"
 #include "uart.h"
-#include "protocol.h"
+#include "communication.h"
 
 USBD_HandleTypeDef USBD_Device;
 void SysTick_Handler(void);
@@ -70,7 +70,12 @@ uint32_t	g_pins[MAX_STATES] = { 0 };
 uint32_t	g_time[MAX_STATES] = { 0 };
 uint32_t	num_of_entries = 0;
 
-int usb_live = 0;
+int use_usb = 0;
+
+enum {
+	ASCII = 1, 
+	BINARY = 2 
+} systemCommunication = ASCII;
 
 // printf functionality
 /////////////////////////////////////
@@ -279,14 +284,14 @@ static void USB_Init() {
 	while (USBD_Device.pClassData == 0) {
 	}
 	
-	usb_live = 1;
+	use_usb = 1;
 }
 
 static void USB_Deinit() {
 	USBD_Stop(&USBD_Device);
 	USBD_DeInit(&USBD_Device);
 	
-	usb_live = 0;
+	use_usb = 0;
 }
 
 static void Init() {
@@ -300,29 +305,33 @@ static void Init() {
 }
 
 int main() {	
-	uint8_t rxBuf[1024] = {0};
-	uint8_t txBuf[10] = {0};
+	uint8_t rxBuf[UART_BUFFER_SIZE] = {0};
+	uint8_t txBuf[16] = {0};
 	int tmp = 0, read = 0;
 	
 	Init();
 
-	while (1) {
+	while (1) {				
 		
-		do {
-			if (usb_live)	
-				tmp = VCP_read(&rxBuf[read], sizeof(rxBuf) - read);
-			else 			
-				tmp = Protocol_Read(&rxBuf[read], sizeof(rxBuf) - read);
+		if (systemCommunication == BINARY) {
+			
+		} else if (systemCommunication == ASCII) {
+			
+			do {
+				if (use_usb)	
+					tmp = VCP_read(&rxBuf[read], sizeof(rxBuf) - read - 1);
+				else
+					tmp = Com_Read_ASCII(&rxBuf[read], sizeof(rxBuf) - read - 1);
 	
-			read += tmp;
-		} while (tmp);
-		
-		if (read > 0) {
-			ParseScript((char*)rxBuf);
-			memset(rxBuf, 0, read);
-			read = 0;
+				read += tmp;
+			} while (tmp);
+						
+			if (read > 0) {
+				ParseScript((char*)rxBuf);
+				memset(rxBuf, 0, read);
+				read = 0;
+			}
 		}
-		
 	}
 }
 

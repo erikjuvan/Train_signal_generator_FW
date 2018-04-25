@@ -1,10 +1,10 @@
-#include "protocol.h"
+#include "communication.h"
 #include "uart.h"
 #include <string.h>
 
-extern uint8_t Device_Address;
+extern uint8_t UART_Address;
 
-static uint8_t rx_buffer[1024];
+static uint8_t rx_buffer[UART_BUFFER_SIZE];
 static uint16_t rx_buffer_size;
 
 void UART_RX_Complete_Callback(uint8_t* data, int size) {
@@ -12,7 +12,7 @@ void UART_RX_Complete_Callback(uint8_t* data, int size) {
 	memcpy(rx_buffer, data, rx_buffer_size);	
 }
 
-int Protocol_Read(uint8_t* data, int max_len) {
+int Com_Read(uint8_t* data, int max_len) {
 	
 	if (rx_buffer_size <= 0) return 0;
 	
@@ -29,9 +29,8 @@ int Protocol_Read(uint8_t* data, int max_len) {
 			if ((byte_cnt / 2) >= max_len) { // input data buffer full
 				break;
 			}
-		} else if ((tmp_data & 0x10) == 0x10) {	// Command
-			if (tmp_data == 0x1B) {	// Escape
-			}
+		} else if (tmp_data == 0x1B) { // Escape
+			// Do something
 		}
 	}
 	
@@ -43,19 +42,43 @@ int Protocol_Read(uint8_t* data, int max_len) {
 		return byte_cnt / 2;
 }
 
-int Protocol_Write(uint8_t* data, int size) {
+int Com_Read_ASCII(uint8_t* data, int max_len) {
+	if (rx_buffer_size <= 0) return 0;
+	
+	int len = rx_buffer_size > max_len ? max_len : rx_buffer_size;
+	memcpy(data, rx_buffer, len);
+	
+	rx_buffer_size = 0;
+	
+	return len;
+}
+	
+int Com_Write(uint8_t* data, int size) {
 	uint8_t buf[UART_BUFFER_SIZE];
 	int packet_size = 1 + size * 2; // 1 - address byte, *2 - each byte is split into 2 send bytes
 	
 	if (packet_size > UART_BUFFER_SIZE)
 		return 0;
 	
-	buf[0] = 0x80 | Device_Address;	// add origin address byte
+	buf[0] = 0x80 | UART_Address;	// add origin address byte
 	for (int i = 0; i < size; ++i) {
 		uint8_t tmp_data = data[i];
 		buf[1 + i*2] = 0x30 | (tmp_data >> 4);
 		buf[2 + i*2] = 0x30 | (tmp_data & 0x0F);
 	}
+	
+	return UART_Write(buf, packet_size);
+}
+
+int Com_Write_ASCII(uint8_t* data, int size) {
+	uint8_t buf[UART_BUFFER_SIZE];
+	int packet_size = 1 + size; // 1 - address byte
+	
+	if (packet_size > UART_BUFFER_SIZE)
+		return 0;
+	
+	buf[0] = 0x80 | UART_Address;	// add origin address byte
+	memcpy(&buf[1], data, size);
 	
 	return UART_Write(buf, packet_size);
 }

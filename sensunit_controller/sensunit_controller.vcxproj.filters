@@ -708,10 +708,10 @@
     <ClCompile Include="uart.c">
       <Filter>Source files</Filter>
     </ClCompile>
-    <ClCompile Include="protocol.c">
+    <ClCompile Include="flash.c">
       <Filter>Source files</Filter>
     </ClCompile>
-    <ClCompile Include="flash.c">
+    <ClCompile Include="communication.c">
       <Filter>Source files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -722,10 +722,10 @@
     <ClInclude Include="uart.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="protocol.h">
+    <ClInclude Include="flash.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="flash.h">
+    <ClInclude Include="communication.h">
       <Filter>Header files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -5,6 +5,7 @@
 
 // User Library
 #include "main.h"
+#include "uart.h"
 
 extern void TIM_Update_ARR(uint32_t arr);
 extern void TIM_Update_PSC(uint32_t psc);
@@ -208,12 +209,20 @@ static void Function_CCHNL(char* str) {
 	}
 }
 
+static void Function_CSETID(char* str) {
+	str = strtok(NULL, Delims);
+	if(str != NULL) {
+		int num = atoi(str);
+		if (num <= 127) {
+			UART_Set_Address(num);
+		}
+	}	
+}
 
 /* Example program
 
 // ks_script.txt 
 // <- comment
-// MAX script length = 1024 bytes
 
 CENBL,0
 // first param: Timer base frequency [Hz], second param: Timer Period [us]
@@ -249,6 +258,9 @@ void ParseScript(char* script) {
 		}
 		else if (strncmp(str, "CCHNL", 5) == 0) {
 			Function_CCHNL(str);
+		}
+		else if (strncmp(str, "CSETID", 6) == 0) {
+			Function_CSETID(str);
 		}
 		else {
 			Unknown_function(str);
