@@ -6,6 +6,7 @@
 // User Library
 #include "main.h"
 #include "uart.h"
+#include "communication.h"
 
 extern void TIM_Update_ARR(uint32_t arr);
 extern void TIM_Update_PSC(uint32_t psc);
@@ -20,6 +21,10 @@ extern uint32_t num_of_entries;
 
 extern const int IsGPIOReversePin[];
 extern const uint32_t GPIOPinArray[];
+
+extern uint8_t UART_Address;
+
+extern int protocol_ascii;
 
 const char Delims[] = "\n\r\t, ";
 
@@ -83,10 +88,6 @@ static int StrToInts(char* str, int* ints, int maxArrSize) {
 	return element;
 }
 
-static void Unknown_function(char* str) {
-	__asm__("nop");	
-}
-
 static void Update(uint32_t ch_num, int ch_idx, int time_val, int time_idx) {
 	uint32_t gpio_pin = GPIOPinArray[ch_num];
 	
@@ -111,6 +112,10 @@ static void Insert(uint32_t ch_num, int ch_idx, int time_val, int time_idx) {
 	g_pins[time_idx] = 0;
 	Update(ch_num, ch_idx, time_val, time_idx);
 	num_of_entries++;
+}
+
+static void Function_Unknown(char* str) {
+	__asm__("nop");	
 }
 
 // Enable/Disable. Example: CENBL,0 - disable output, CENBL,1 - enable output 
@@ -209,7 +214,22 @@ static void Function_CCHNL(char* str) {
 	}
 }
 
-static void Function_CSETID(char* str) {
+
+static void Function_STRT(char* str) {
+}
+
+static void Function_VERG(char* str) {
+	char buf[100] = {0};
+	strncpy(&buf[strlen(buf)], "VERG,", 5);
+	strncpy(&buf[strlen(buf)], SWVER, strlen(SWVER));
+	buf[strlen(buf)] = ',';
+	strncpy(&buf[strlen(buf)], HWVER, strlen(HWVER));
+	buf[strlen(buf)] = ',';
+	strncpy(&buf[strlen(buf)], COMPATIBILITYMODE, strlen(COMPATIBILITYMODE));
+	Write((uint8_t*)buf, strlen(buf), protocol_ascii);
+}
+
+static void Function_IDST(char* str) {
 	str = strtok(NULL, Delims);
 	if(str != NULL) {
 		int num = atoi(str);
@@ -219,52 +239,65 @@ static void Function_CSETID(char* str) {
 	}	
 }
 
+static void Function_IDGT(char* str) {	
+	char buf[10] = {0};
+	strncpy(buf, "ID:", 3);
+	itoa(UART_Address, &buf[strlen(buf)], 10);
+	
+	Write((uint8_t*)buf, strlen(buf), 1);			
+}
+
+static void Function_USBY(char* str) {
+	Communication_Set_USB();	
+}
+
+static void Function_USBN(char* str) {
+	Communication_Set_UART();	
+}
+
+static struct {
+	const char* name;
+	void (*Func)(char*);
+} command[] = {
+	{"STRT", Function_STRT},
+	{"VERG", Function_VERG},
+	{"IDST", Function_IDST},
+	{"IDGT", Function_IDGT},
+	{"USBY", Function_USBY},
+	{"USBN", Function_USBN},
+	
+	// Legacy
+	{"CENBL", Function_CENBL},
+	{"CPRDS", Function_CPRDS},
+	{"CCHNL", Function_CCHNL},
+};
+
 /* Example program
-
-// ks_script.txt 
-// <- comment
-
 CENBL,0
-// first param: Timer base frequency [Hz], second param: Timer Period [us]
 CPRDS,1000000,65000		
 CCHNL,0,140,240,32460,32560
 CCHNL,5,490,502
 CCHNL,6,752,762
-// Ch 2 - trigger out
 CCHNL,2,32810,32830
 CCHNL,3,33080,33100
 CCHNL,7,100,220,470,13970,32420,32540,32790,46290
 CCHNL,1,470,482,732,13982,32790,32810,33060,46560
 CCHNL,4,1,32560
 CENBL,1
+*/ 
 
-*/
-
-void ParseScript(char* script) {
+void Parse(char* string) {
 	char* str;
 	
-	str = strtok(script, Delims);
+	str = strtok(string, Delims);
 	while (str != NULL) {
-		
-		if (strncmp(str, "//", 2) == 0) {
-			// COMMENT (single line) (entire line only)
-			str = strtok(NULL, "\n");
-		}
-		else if (strncmp(str, "CENBL", 5) == 0) {
-			Function_CENBL(str);
-		}
-		else if (strncmp(str, "CPRDS", 5) == 0) {
-			Function_CPRDS(str);
-		}
-		else if (strncmp(str, "CCHNL", 5) == 0) {
-			Function_CCHNL(str);
-		}
-		else if (strncmp(str, "CSETID", 6) == 0) {
-			Function_CSETID(str);
-		}
-		else {
-			Unknown_function(str);
-		}
+
+		for (int i = 0; i < sizeof(command) / sizeof(command[0]); ++i) {
+			if (strcmp(str, command[i].name) == 0) {
+				command[i].Func(str);
+				break;
+			}			
+		}		
 		
 		str = strtok(NULL, Delims);
 	}

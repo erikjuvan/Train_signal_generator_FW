@@ -728,5 +728,8 @@
     <ClInclude Include="communication.h">
       <Filter>Header files</Filter>
     </ClInclude>
+    <ClInclude Include="parse.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

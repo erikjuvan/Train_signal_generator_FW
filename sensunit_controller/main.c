@@ -16,6 +16,7 @@ ARR		- sequence period
 #include "main.h"
 #include "uart.h"
 #include "communication.h"
+#include "parse.h"
 
 USBD_HandleTypeDef USBD_Device;
 void SysTick_Handler(void);
@@ -25,7 +26,6 @@ extern PCD_HandleTypeDef hpcd;
 int VCP_read(void *pBuffer, int size);
 int VCP_write(const void *pBuffer, int size);
 extern char g_VCPInitialized;
-extern void ParseScript(char* script);
 
 const uint32_t GPIOPinArray[] = {
 	GPIO_PIN_0,
@@ -70,12 +70,7 @@ uint32_t	g_pins[MAX_STATES] = { 0 };
 uint32_t	g_time[MAX_STATES] = { 0 };
 uint32_t	num_of_entries = 0;
 
-int use_usb = 0;
-
-enum {
-	ASCII = 1, 
-	BINARY = 2 
-} systemCommunication = ASCII;
+int protocol_ascii = 1;
 
 // printf functionality
 /////////////////////////////////////
@@ -282,22 +277,17 @@ static void USB_Init() {
 	
 	// Wait for USB to Initialize
 	while (USBD_Device.pClassData == 0) {
-	}
-	
-	use_usb = 1;
+	}		
 }
 
 static void USB_Deinit() {
 	USBD_Stop(&USBD_Device);
-	USBD_DeInit(&USBD_Device);
-	
-	use_usb = 0;
+	USBD_DeInit(&USBD_Device);		
 }
 
 static void Init() {
 	HAL_Init();
 	SystemClock_Config();	
-	//USB_Init();	// enable it with UART if neccessary
 	GPIO_Configure();
 	DMA_Configure();
 	TIM_Configure();
@@ -307,31 +297,27 @@ static void Init() {
 int main() {	
 	uint8_t rxBuf[UART_BUFFER_SIZE] = {0};
 	uint8_t txBuf[16] = {0};
-	int tmp = 0, read = 0;
+	int tmp = 0, read = 0;	
 	
 	Init();
+	
+	USB_Init();
+	Communication_Set_USB();
+	protocol_ascii = 1;
 
 	while (1) {				
 		
-		if (systemCommunication == BINARY) {
-			
-		} else if (systemCommunication == ASCII) {
-			
-			do {
-				if (use_usb)	
-					tmp = VCP_read(&rxBuf[read], sizeof(rxBuf) - read - 1);
-				else
-					tmp = Com_Read_ASCII(&rxBuf[read], sizeof(rxBuf) - read - 1);
-	
-				read += tmp;
-			} while (tmp);
-						
-			if (read > 0) {
-				ParseScript((char*)rxBuf);
+		read = Read(rxBuf, sizeof(rxBuf), protocol_ascii);
+		
+		if (read > 0) {
+			if (protocol_ascii) {	// ASCII
+				Parse((char*)rxBuf);
 				memset(rxBuf, 0, read);
 				read = 0;
-			}
-		}
+			} else {	// Binary
+				
+			}	
+		}		
 	}
 }
 

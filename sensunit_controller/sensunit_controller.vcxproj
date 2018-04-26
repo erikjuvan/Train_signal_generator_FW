@@ -156,6 +156,7 @@
     <ClInclude Include="flash.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="communication.h" />
+    <ClInclude Include="parse.h" />
     <ClInclude Include="uart.h" />
     <ClInclude Include="usbd_cdc_if.h" />
     <ClInclude Include="usbd_conf.h" />

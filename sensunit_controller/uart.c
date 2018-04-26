@@ -1,7 +1,7 @@
 #include <string.h>
 #include "uart.h"
 
-const uint8_t CharacterMatch = 0x0A;	// Newline
+const static uint8_t CharacterMatch = 0x0A;	// Newline
 static UART_HandleTypeDef UartHandle;
 
 uint8_t	UART_Address = 0;
@@ -102,7 +102,7 @@ void UART_Init() {
 	USARTx->CR1 |= USART_CR1_RXNEIE;		
 }
 
-int UART_Write(uint8_t* data, int size) {
+int UART_Write(const uint8_t* data, int size) {
 	int ret = 0;
 	
 	if (size > 0 && !(USARTx->CR1 & USART_CR1_TXEIE)) {
@@ -118,7 +118,7 @@ int UART_Write(uint8_t* data, int size) {
 
 
 // Weak callback functions - to be implemented by the user in protocol specific section
-__weak void UART_RX_Complete_Callback(uint8_t* data, int size) {
+__weak void UART_RX_Complete_Callback(const uint8_t* data, int size) {
 	UNUSED(data);
 	UNUSED(size);
 }

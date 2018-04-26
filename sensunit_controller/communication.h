@@ -2,8 +2,9 @@
 
 #include <stdint.h>
 
-int Com_Read(uint8_t* data, int max_len);
-int Com_Write(uint8_t* data, int size);
+int Read(uint8_t* buffer, int max_size, int ascii);
+int Write(const uint8_t* buffer, int size, int ascii);
 
-int Com_Read_ASCII(uint8_t* data, int max_len);
-int Com_Write_ASCII(uint8_t* data, int size);
+void Communication_Set_USB();
+void Communication_Set_UART();
+int Communication_Get_USB();
