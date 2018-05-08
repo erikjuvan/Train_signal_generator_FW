@@ -309,7 +309,7 @@ int main() {
 		
 		read = Read(rxBuf, sizeof(rxBuf), protocol_ascii);
 		
-		if (read > 0) {
+		if (read != 0) {
 			if (protocol_ascii) {	// ASCII
 				Parse((char*)rxBuf);
 				memset(rxBuf, 0, read);

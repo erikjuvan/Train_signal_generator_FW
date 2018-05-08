@@ -296,8 +296,8 @@ void Parse(char* string) {
 			if (strcmp(str, command[i].name) == 0) {
 				command[i].Func(str);
 				break;
-			}			
-		}		
+			}
+		}
 		
 		str = strtok(NULL, Delims);
 	}
