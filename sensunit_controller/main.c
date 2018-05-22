@@ -274,10 +274,6 @@ static void USB_Init() {
 	USBD_RegisterClass(&USBD_Device, &USBD_CDC);
 	USBD_CDC_RegisterInterface(&USBD_Device, &USBD_CDC_sensunit_controller_fops);
 	USBD_Start(&USBD_Device);
-	
-	// Wait for USB to Initialize
-	while (USBD_Device.pClassData == 0) {
-	}		
 }
 
 static void USB_Deinit() {
@@ -302,7 +298,7 @@ int main() {
 	Init();
 	
 	USB_Init();
-	Communication_Set_USB();
+	Communication_Set_UART();
 	protocol_ascii = 1;
 
 	while (1) {				
@@ -317,7 +313,18 @@ int main() {
 			} else {	// Binary
 				
 			}	
-		}		
+		}
+		
+		// Developement code (should not be used after devel phase)
+		if (!Communication_Get_USB()) {	// ASCII mode
+			char buf[10];
+			if (VCP_read(buf, 10) > 0) {
+				if (strncmp(buf, "USBY", 4) == 0) {
+					Communication_Set_USB();
+					protocol_ascii = 1;
+				}
+			}
+		}
 	}
 }
 
