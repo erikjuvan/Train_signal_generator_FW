@@ -316,7 +316,7 @@ int main() {
 		}
 		
 		// Developement code (should not be used after devel phase)
-		if (!Communication_Get_USB()) {	// ASCII mode
+		if (!Communication_Get_USB()) {	// RS-422 mode
 			char buf[10];
 			if (VCP_read(buf, 10) > 0) {
 				if (strncmp(buf, "USBY", 4) == 0) {

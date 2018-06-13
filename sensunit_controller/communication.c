@@ -27,7 +27,7 @@ int Read(uint8_t* buffer, int max_size, int ascii) {
 		int tmp = 0;
 		while ((tmp = VCP_read(&buffer[len], max_size - len)) > 0) {
 			len += tmp;
-			for (int i = 0; i < 10000; ++i);	// improvised short Delay ~ 300us
+			for (int i = 0; i < 100000; ++i);	// improvised Delay
 		} 
 		buffer[len] = 0;
 		if (!ascii) {
