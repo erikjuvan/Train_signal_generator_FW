@@ -122,10 +122,10 @@ static void Function_Unknown(char* str) {
 static void Function_CENBL(char* str) {
 	str = strtok(NULL, Delims);  // first parameter
 	
-	if(str[0] == '0') { // DISABLE		
+	if (str[0] == '0') { // DISABLE		
 		newSettings = 1;
 		Stop();
-	} else if(str[0] == '1') { // ENABLE
+	} else if (str[0] == '1') { // ENABLE
 		if(needsCorrecting) {
 			CorrectValues();
 			DMA_Update(num_of_entries);
@@ -148,7 +148,7 @@ static void Function_CPRDS(char* str) {
 	} */
 	
 	str = strtok(NULL, Delims);  // second param	- PERIOD
-	if(str != NULL) {
+	if (str != NULL) {
 		int num = atoi(str);
 		if (num > 0) {
 			timerARR = num;
@@ -255,6 +255,10 @@ static void Function_USBN(char* str) {
 	Communication_Set_UART();	
 }
 
+static void Function_PING(char* str) {
+	Write((uint8_t*) "OK", 2, 1);
+}
+
 static struct {
 	const char* name;
 	void (*Func)(char*);
@@ -265,6 +269,7 @@ static struct {
 	{"IDGT", Function_IDGT},
 	{"USBY", Function_USBY},
 	{"USBN", Function_USBN},
+	{"PING", Function_PING},
 	
 	// Legacy
 	{"CENBL", Function_CENBL},

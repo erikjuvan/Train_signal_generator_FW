@@ -260,7 +260,6 @@ void Stop() {
 	TIM_Update_REGS();
 	
 	SetInitialGPIOState();
-	HAL_Delay(100);
 }
 
 void Start() {
@@ -310,8 +309,7 @@ int main() {
 				Parse((char*)rxBuf);
 				memset(rxBuf, 0, read);
 				read = 0;
-			} else {	// Binary
-				
+			} else {	// Binary				
 			}	
 		}
 		
