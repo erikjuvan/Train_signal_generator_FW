@@ -70,7 +70,8 @@ uint32_t	g_pins[MAX_STATES] = { 0 };
 uint32_t	g_time[MAX_STATES] = { 0 };
 uint32_t	num_of_entries = 0;
 
-int protocol_ascii = 1;
+extern CommunicationMode g_communication_mode;
+extern CommunicationInterface g_communication_interface;
 
 // printf functionality
 /////////////////////////////////////
@@ -253,6 +254,12 @@ void TIM_Update_REGS() {
 }
 /////////////////////////////////////
 
+void EXTI_Configure() {
+	EXTI->IMR |= EXTI_IMR_IM0;
+	HAL_NVIC_SetPriority(EXTI0_IRQn, 2, 0);
+	HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+}
+
 void Stop() {
 	// ORDER OF FUNCTION CALLS MATTERS!!!
 	TIM_Stop();
@@ -282,48 +289,46 @@ static void USB_Deinit() {
 
 static void Init() {
 	HAL_Init();
-	SystemClock_Config();	
+	SystemClock_Config();
 	GPIO_Configure();
 	DMA_Configure();
 	TIM_Configure();
 	UART_Init();
+	EXTI_Configure();
 }
 
-int main() {	
-	uint8_t rxBuf[UART_BUFFER_SIZE] = {0};
-	uint8_t txBuf[16] = {0};
-	int tmp = 0, read = 0;	
-	
-	Init();
-	
-	USB_Init();
-	Communication_Set_UART();
-	protocol_ascii = 1;
+void COM_UART_RX_Complete_Callback(uint8_t* buf, int size) {
+	if (g_communication_mode == ASCII) { // ASCII mode
+		Parse((char*)buf);
+	}
+}
 
-	while (1) {				
-		
-		read = Read(rxBuf, sizeof(rxBuf), protocol_ascii);
-		
-		if (read != 0) {
-			if (protocol_ascii) {	// ASCII
-				Parse((char*)rxBuf);
-				memset(rxBuf, 0, read);
-				read = 0;
-			} else {	// Binary				
-			}	
+int main() {
+	uint8_t rxBuf[UART_BUFFER_SIZE] = {0};
+	int read = 0;
+
+	Init();
+
+	USB_Init();
+
+	while (1) {
+
+		read = Read(rxBuf, sizeof(rxBuf));
+
+		if (read > 0 && g_communication_mode == ASCII) {
+			Parse((char*)rxBuf);
+			memset(rxBuf, 0, read);
 		}
-		
+
 		// Developement code (should not be used after devel phase)
-		if (!Communication_Get_USB()) {	// RS-422 mode
+		if (g_communication_interface == UART) {
 			char buf[10];
 			if (VCP_read(buf, 10) > 0) {
 				if (strncmp(buf, "USBY", 4) == 0) {
-					Communication_Set_USB();
-					protocol_ascii = 1;
+					g_communication_interface = USB;
+					g_communication_mode = ASCII;
 				}
 			}
 		}
 	}
 }
-
-

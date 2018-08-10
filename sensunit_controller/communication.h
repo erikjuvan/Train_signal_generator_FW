@@ -2,9 +2,10 @@
 
 #include <stdint.h>
 
-int Read(uint8_t* buffer, int max_size, int ascii);
-int Write(const uint8_t* buffer, int size, int ascii);
+typedef enum { ASCII, BINARY } CommunicationMode;
+typedef enum { UART, USB} CommunicationInterface;
 
-void Communication_Set_USB();
-void Communication_Set_UART();
-int Communication_Get_USB();
+int Read(uint8_t* buffer, int max_size);
+int Write(const uint8_t* buffer, int size);
+
+void COM_UART_RX_Complete_Callback(uint8_t* buf, int size);

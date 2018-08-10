@@ -24,7 +24,8 @@ extern const uint32_t GPIOPinArray[];
 
 extern uint8_t UART_Address;
 
-extern int protocol_ascii;
+extern CommunicationMode g_communication_mode;
+extern CommunicationInterface g_communication_interface;
 
 const char Delims[] = "\n\r\t, ";
 
@@ -226,7 +227,7 @@ static void Function_VERG(char* str) {
 	strncpy(&buf[strlen(buf)], HWVER, strlen(HWVER));
 	buf[strlen(buf)] = ',';
 	strncpy(&buf[strlen(buf)], COMPATIBILITYMODE, strlen(COMPATIBILITYMODE));
-	Write((uint8_t*)buf, strlen(buf), protocol_ascii);
+	Write((uint8_t*)buf, strlen(buf));
 }
 
 static void Function_IDST(char* str) {
@@ -244,19 +245,19 @@ static void Function_IDGT(char* str) {
 	strncpy(buf, "ID:", 3);
 	itoa(UART_Address, &buf[strlen(buf)], 10);
 	
-	Write((uint8_t*)buf, strlen(buf), 1);			
+	Write((uint8_t*)buf, strlen(buf));			
 }
 
 static void Function_USBY(char* str) {
-	Communication_Set_USB();	
+	g_communication_interface = USB;
 }
 
 static void Function_USBN(char* str) {
-	Communication_Set_UART();	
+	g_communication_interface = UART;
 }
 
 static void Function_PING(char* str) {
-	Write((uint8_t*) "OK", 2, 1);
+	Write((uint8_t*) "OK", 2);
 }
 
 static struct {

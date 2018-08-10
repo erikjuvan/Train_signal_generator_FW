@@ -19,6 +19,3 @@
 #define ALL_PINS			GPIO_PIN_All
 
 #define NUM_OF_CHANNELS	16
-
-void Protocol_Set_ASCII();
-void Protocol_Set_Bin();
