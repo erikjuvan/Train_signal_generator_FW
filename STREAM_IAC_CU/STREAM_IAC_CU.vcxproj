@@ -16,6 +16,7 @@
     <BSP_ID>com.sysprogs.arm.stm32</BSP_ID>
     <BSP_VERSION>4.7</BSP_VERSION>
     <InPlaceBSPSubdir />
+    <ProjectName>STREAM_IAC_CU</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|VisualGDB'">
@@ -281,8 +282,8 @@
     <ClInclude Include="$(BSP_ROOT)\STM32F7xxxx\CMSIS_HAL\Include\core_sc000.h" />
     <ClInclude Include="$(BSP_ROOT)\STM32F7xxxx\CMSIS_HAL\Include\core_sc300.h" />
     <ClInclude Include="$(BSP_ROOT)\STM32F7xxxx\CMSIS_HAL\RTOS\Template\cmsis_os.h" />
-    <None Include="sensunit_controller-Debug.vgdbsettings" />
-    <None Include="sensunit_controller-Release.vgdbsettings" />
+    <None Include="STREAM_IAC_CU-Debug.vgdbsettings" />
+    <None Include="STREAM_IAC_CU-Release.vgdbsettings" />
     <None Include="stm32.xml" />
     <ClCompile Include="$(BSP_ROOT)\STM32F7xxxx\StartupFiles\startup_stm32f745xx.c" />
     <ClCompile Include="$(BSP_ROOT)\STM32F7xxxx\STM32F7xx_HAL_Driver\Src\Legacy\stm32f7xx_hal_can.c" />

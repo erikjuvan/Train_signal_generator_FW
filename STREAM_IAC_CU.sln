@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27004.2002
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sensunit_controller", "sensunit_controller\sensunit_controller.vcxproj", "{9789DF72-391B-4E1C-9DCC-A736398C21D3}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "STREAM_IAC_CU", "STREAM_IAC_CU\STREAM_IAC_CU.vcxproj", "{9789DF72-391B-4E1C-9DCC-A736398C21D3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

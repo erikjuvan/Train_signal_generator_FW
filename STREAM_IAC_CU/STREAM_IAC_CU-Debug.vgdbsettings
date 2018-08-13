@@ -15,7 +15,7 @@
         <Revision>0</Revision>
       </Version>
     </ToolchainID>
-    <ProjectFile>sensunit_controller.vcxproj</ProjectFile>
+    <ProjectFile>STREAM_IAC_CU.vcxproj</ProjectFile>
     <ParallelJobCount>0</ParallelJobCount>
     <SuppressDirectoryChangeMessages>true</SuppressDirectoryChangeMessages>
   </Build>

@@ -681,10 +681,10 @@
     <ClInclude Include="$(BSP_ROOT)\STM32F7xxxx\CMSIS_HAL\RTOS\Template\cmsis_os.h">
       <Filter>Header files\Device-specific files\HAL</Filter>
     </ClInclude>
-    <None Include="sensunit_controller-Debug.vgdbsettings">
+    <None Include="STREAM_IAC_CU-Debug.vgdbsettings">
       <Filter>VisualGDB settings</Filter>
     </None>
-    <None Include="sensunit_controller-Release.vgdbsettings">
+    <None Include="STREAM_IAC_CU-Release.vgdbsettings">
       <Filter>VisualGDB settings</Filter>
     </None>
     <None Include="stm32.xml">

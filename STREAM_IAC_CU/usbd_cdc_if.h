@@ -38,7 +38,7 @@
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
 
-extern USBD_CDC_ItfTypeDef  USBD_CDC_sensunit_controller_fops;
+extern USBD_CDC_ItfTypeDef  USBD_CDC_STREAM_IAC_CU_fops;
 
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
