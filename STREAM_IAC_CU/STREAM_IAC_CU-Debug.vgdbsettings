@@ -53,7 +53,7 @@
     <DebugMethod>
       <ID>com.sysprogs.arm.openocd</ID>
       <Configuration xsi:type="com.visualgdb.edp.openocd.settings">
-        <CommandLine>-f interface/stlink-v2-1.cfg -f target/stm32f7x.cfg -c init -c "reset init"</CommandLine>
+        <CommandLine>-f interface/stlink.cfg -f target/stm32f7x.cfg -c "hla_serial \x49\x3F\x70\x06\x67\x75\x54\x55\x45\x56\x17\x67"</CommandLine>
         <ExtraParameters>
           <Frequency xsi:nil="true" />
           <BoostedFrequency xsi:nil="true" />
@@ -65,7 +65,6 @@
           <string>set remotetimeout 60</string>
           <string>target remote :$$SYS:GDB_PORT$$</string>
           <string>mon halt</string>
-          <string>mon reset init</string>
           <string>load</string>
         </StartupCommands>
         <PreferredGDBPort>0</PreferredGDBPort>
