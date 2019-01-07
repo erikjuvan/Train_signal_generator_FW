@@ -326,34 +326,24 @@ static void Init()
 void COM_UART_RX_Complete_Callback(uint8_t* buf, int size)
 {
     if (g_communication_mode == ASCII) { // ASCII mode
-        Parse((char*)buf);
+        Parse((char*)buf, UARTWrite);
     }
 }
 
 int main()
 {
     uint8_t rxBuf[UART_BUFFER_SIZE] = {0};
-    int     read                    = 0;
+    int     usb_read                = 0;
 
     Init();
 
     while (1) {
 
-        read = Read(rxBuf, sizeof(rxBuf));
-
-        if (read > 0 && g_communication_mode == ASCII) {
-            Parse((char*)rxBuf);
-            memset(rxBuf, 0, read);
-        }
-
-        // Developement code (should not be used after devel phase)
-        if (g_communication_interface == UART && g_VCPInitialized) {
-            char buf[10];
-            if (VCP_read(buf, 10) > 0) {
-                if (strncmp(buf, "USBY", 4) == 0) {
-                    g_communication_interface = USB;
-                    g_communication_mode      = ASCII;
-                }
+        if (g_VCPInitialized) { // Make sure USB is initialized (calling, VCP_write can halt the system if the data structure hasn't been malloc-ed yet)
+            usb_read = USBRead(rxBuf, sizeof(rxBuf));
+            if (usb_read > 0) {
+                Parse((char*)rxBuf, USBWrite);
+                memset(rxBuf, 0, usb_read);
             }
         }
     }

@@ -6,6 +6,7 @@
 // User Library
 #include "communication.h"
 #include "main.h"
+#include "parse.h"
 #include "uart.h"
 
 extern void TIM_Update_ARR(uint32_t arr);
@@ -118,13 +119,8 @@ static void Insert(uint32_t ch_num, int ch_idx, int time_val, int time_idx)
     num_of_entries++;
 }
 
-static void Function_Unknown(char* str)
-{
-    __asm__("nop");
-}
-
 // Enable/Disable. Example: CENBL,0 - disable output, CENBL,1 - enable output
-static void Function_CENBL(char* str)
+static void Function_CENBL(char* str, write_func Write)
 {
     str = strtok(NULL, Delims); // first parameter
 
@@ -142,7 +138,7 @@ static void Function_CENBL(char* str)
 }
 
 // Set settings. Example: CPRDS,1000000,65000 // first param: Timer base frequency [Hz], second param: Timer Period [us]
-static void Function_CPRDS(char* str)
+static void Function_CPRDS(char* str, write_func Write)
 {
     str = strtok(NULL, Delims); // first param - FREQUENCY(RESOLUTION) !NOT IMPLEMENTED!
     /* if(str != NULL) {   ALL THIS IS PREVIOUS CODE, NOT IMPLEMENTED FOR NEW SCRIPT FORMAT
@@ -167,7 +163,7 @@ static void Function_CPRDS(char* str)
 
 // Set Channel. Example CCHNL,0,140,240,32460,32560 // first param: channel number - coresponds to PIN numbers (0 - PIN0, 1 - PIN1, ...)
 // second param: on g_time, third param: off g_time ... toggle so on
-static void Function_CCHNL(char* str)
+static void Function_CCHNL(char* str, write_func Write)
 {
     int found = 0;
 
@@ -224,11 +220,11 @@ static void Function_CCHNL(char* str)
     }
 }
 
-static void Function_STRT(char* str)
+static void Function_STRT(char* str, write_func Write)
 {
 }
 
-static void Function_VERG(char* str)
+static void Function_VERG(char* str, write_func Write)
 {
     char buf[100] = {0};
     strncpy(&buf[strlen(buf)], "VERG,", 5);
@@ -240,7 +236,7 @@ static void Function_VERG(char* str)
     Write((uint8_t*)buf, strlen(buf));
 }
 
-static void Function_IDST(char* str)
+static void Function_IDST(char* str, write_func Write)
 {
     str = strtok(NULL, Delims);
     if (str != NULL) {
@@ -251,7 +247,7 @@ static void Function_IDST(char* str)
     }
 }
 
-static void Function_IDGT(char* str)
+static void Function_IDGT(char* str, write_func Write)
 {
     char buf[10] = {0};
     strncpy(buf, "ID:", 3);
@@ -260,17 +256,17 @@ static void Function_IDGT(char* str)
     Write((uint8_t*)buf, strlen(buf));
 }
 
-static void Function_USBY(char* str)
+static void Function_USB(char* str, write_func Write)
 {
     g_communication_interface = USB;
 }
 
-static void Function_USBN(char* str)
+static void Function_UART(char* str, write_func Write)
 {
     g_communication_interface = UART;
 }
 
-static void Function_PING(char* str)
+static void Function_PING(char* str, write_func Write)
 {
     Write((uint8_t*)"OK", 2);
 }
@@ -282,14 +278,14 @@ static void Function_PING(char* str)
 
 static struct {
     const char* name;
-    void (*Func)(char*);
+    void (*Func)(char*, write_func);
 } command[] = {
     COMMAND(STRT),
     COMMAND(VERG),
     COMMAND(IDST),
     COMMAND(IDGT),
-    COMMAND(USBY),
-    COMMAND(USBN),
+    COMMAND(USB),
+    COMMAND(UART),
     COMMAND(PING),
 
     // Legacy
@@ -311,7 +307,7 @@ CCHNL,4,1,32560
 CENBL,1
 */
 
-void Parse(char* string)
+void Parse(char* string, write_func Write)
 {
     char* str;
 
@@ -320,7 +316,7 @@ void Parse(char* string)
 
         for (int i = 0; i < sizeof(command) / sizeof(command[0]); ++i) {
             if (strcmp(str, command[i].name) == 0) {
-                command[i].Func(str);
+                command[i].Func(str, Write);
                 break;
             }
         }
