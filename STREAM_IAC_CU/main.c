@@ -316,8 +316,11 @@ static void Init()
     GPIO_Configure();
     DMA_Configure();
     TIM_Configure();
-    UART_Init();
     EXTI_Configure();
+
+    UART_Init();
+
+    USB_Init();
 }
 
 void COM_UART_RX_Complete_Callback(uint8_t* buf, int size)
@@ -334,8 +337,6 @@ int main()
 
     Init();
 
-    USB_Init();
-
     while (1) {
 
         read = Read(rxBuf, sizeof(rxBuf));
@@ -346,7 +347,7 @@ int main()
         }
 
         // Developement code (should not be used after devel phase)
-        if (g_communication_interface == UART) {
+        if (g_communication_interface == UART && g_VCPInitialized) {
             char buf[10];
             if (VCP_read(buf, 10) > 0) {
                 if (strncmp(buf, "USBY", 4) == 0) {

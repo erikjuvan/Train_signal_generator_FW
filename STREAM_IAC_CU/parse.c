@@ -275,23 +275,27 @@ static void Function_PING(char* str)
     Write((uint8_t*)"OK", 2);
 }
 
+#define COMMAND(NAME)          \
+    {                          \
+#NAME, Function_##NAME \
+    }
+
 static struct {
     const char* name;
     void (*Func)(char*);
 } command[] = {
-    {"STRT", Function_STRT},
-    {"VERG", Function_VERG},
-    {"IDST", Function_IDST},
-    {"IDGT", Function_IDGT},
-    {"USBY", Function_USBY},
-    {"USBN", Function_USBN},
-    {"PING", Function_PING},
+    COMMAND(STRT),
+    COMMAND(VERG),
+    COMMAND(IDST),
+    COMMAND(IDGT),
+    COMMAND(USBY),
+    COMMAND(USBN),
+    COMMAND(PING),
 
     // Legacy
-    {"CENBL", Function_CENBL},
-    {"CPRDS", Function_CPRDS},
-    {"CCHNL", Function_CCHNL},
-};
+    COMMAND(CENBL),
+    COMMAND(CPRDS),
+    COMMAND(CCHNL)};
 
 /* Example program
 CENBL,0

@@ -6,6 +6,7 @@
 
 extern uint8_t       UART_Address;
 extern const uint8_t CharacterMatch;
+extern char          g_VCPInitialized;
 
 int VCP_read(void* pBuffer, int size);
 int VCP_write(const void* pBuffer, int size);
@@ -61,7 +62,7 @@ int Read(uint8_t* buffer, int max_size)
 {
     int len = 0;
 
-    if (g_communication_interface == USB) {
+    if (g_communication_interface == USB && g_VCPInitialized) {
         // This silly loop with delays seems neccessary at least when using PC program terminal.exe when sending a file (not when sending normally via command line)
         int tmp = 0;
         while ((tmp = VCP_read(&buffer[len], max_size - len)) > 0) {
@@ -88,7 +89,7 @@ int Write(const uint8_t* buffer, int size)
     if (size <= 0)
         return 0;
 
-    if (g_communication_interface == USB) {
+    if (g_communication_interface == USB && g_VCPInitialized) {
         memcpy(buf, buffer, size);
         len = VCP_write(buffer, size);
     } else {
