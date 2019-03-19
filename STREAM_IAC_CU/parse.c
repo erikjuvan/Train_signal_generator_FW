@@ -261,6 +261,26 @@ static void Function_GETPERIOD(char* str, write_func Write)
     Write((uint8_t*)buf, strlen(buf));
 }
 
+static int WriteChannelSettings(char* buf, int max_size, int ch)
+{
+    int written = 0;
+    buf[0]      = 0;
+    // Write times for said channel
+    for (int i = 0; i < g_num_of_entries; ++i) {
+        if (g_pins[i] & GPIOPinArray[ch] || (g_pins[i] & GPIOPinArray[ch] << 16)) // take into account setting and reseting
+        {
+            if (i == 0) // fetch last time entry
+                written += snprintf(&buf[strlen(buf)], max_size - strlen(buf), "%lu,", g_time[g_num_of_entries - 1] / 4);
+            else
+                written += snprintf(&buf[strlen(buf)], max_size - strlen(buf), "%lu,", g_time[i - 1] / 4);
+        }
+    }
+    if (strlen(buf) > 0)
+        buf[strlen(buf) - 1] = 0;
+
+    return written;
+}
+
 static void Function_GETCH(char* str, write_func Write)
 {
     char buf[100]; // don't need to zero it out
@@ -277,12 +297,10 @@ static void Function_GETCH(char* str, write_func Write)
     /////////////////////
 
     // Write channel number
-    snprintf(buf, sizeof(buf), "CH,%u", ch);
+    snprintf(buf, sizeof(buf), "CH,%u,", ch);
 
-    // Write times for said channel
-    for (int i = 0; i < g_num_of_entries; ++i)
-        if (g_pins[i] == ch)
-            snprintf(&buf[strlen(buf)], sizeof(buf) - strlen(buf), ",%lu", g_time[i]);
+    // Write channel settings
+    WriteChannelSettings(&buf[strlen(buf)], sizeof(buf) - strlen(buf), ch);
 
     // Append newline
     snprintf(&buf[strlen(buf)], sizeof(buf) - strlen(buf), "\n");
@@ -293,7 +311,13 @@ static void Function_GETCH(char* str, write_func Write)
 static void Function_GETSETTINGS(char* str, write_func Write)
 {
     char buf[500]; // don't need to zero it out
-    //snprintf(buf, sizeof(buf), "", );
+    snprintf(buf, sizeof(buf), "PERIOD,%u\n", timer_period_us);
+
+    char tmp_buf[100];
+    for (int ch = 0; ch < NUM_OF_CHANNELS; ++ch) {
+        if (WriteChannelSettings(tmp_buf, sizeof(tmp_buf), ch) > 0)
+            snprintf(&buf[strlen(buf)], sizeof(buf) - strlen(buf), "CH,%u,%s\n", ch, tmp_buf);
+    }
 
     Write((uint8_t*)buf, strlen(buf));
 }
