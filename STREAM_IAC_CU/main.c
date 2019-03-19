@@ -67,7 +67,7 @@ const int IsGPIOReversePin[] = {
 
 uint32_t g_pins[MAX_STATES] = {0};
 uint32_t g_time[MAX_STATES] = {0};
-uint32_t num_of_entries     = 0;
+uint32_t g_num_of_entries   = 0;
 
 extern CommunicationMode      g_communication_mode;
 extern CommunicationInterface g_communication_interface;
@@ -175,13 +175,13 @@ static void GPIO_Configure()
 static void DMA_Configure()
 {
     __DMA2_CLK_ENABLE();
-    DMA2_Stream0->NDTR = num_of_entries;
+    DMA2_Stream0->NDTR = g_num_of_entries;
     DMA2_Stream0->M0AR = (uint32_t)g_pins;
     DMA2_Stream0->PAR  = (uint32_t)&PORT->BSRR;
     DMA2_Stream0->CR   = DMA_CHANNEL_6 | DMA_MBURST_SINGLE | DMA_PBURST_SINGLE | DMA_PRIORITY_VERY_HIGH | DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 |
                        DMA_MINC_ENABLE | DMA_CIRCULAR | DMA_MEMORY_TO_PERIPH;
 
-    DMA2_Stream4->NDTR = num_of_entries;
+    DMA2_Stream4->NDTR = g_num_of_entries;
     DMA2_Stream4->M0AR = (uint32_t)g_time;
     DMA2_Stream4->PAR  = (uint32_t)&TIM2->CCR1;
     DMA2_Stream4->CR   = DMA_CHANNEL_6 | DMA_MBURST_SINGLE | DMA_PBURST_SINGLE | DMA_PRIORITY_HIGH | DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 |
