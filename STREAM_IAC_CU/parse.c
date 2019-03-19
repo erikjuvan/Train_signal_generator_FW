@@ -118,15 +118,10 @@ static void Insert(uint32_t ch_num, int ch_idx, int time_val, int time_idx)
     g_num_of_entries++;
 }
 
-static void Function_GETVERSION(char* str, write_func Write)
+static void Function_VERSION(char* str, write_func Write)
 {
     char buf[100] = {0};
-    strncpy(&buf[strlen(buf)], "VERG,", 5);
-    strncpy(&buf[strlen(buf)], SWVER, strlen(SWVER));
-    buf[strlen(buf)] = ',';
-    strncpy(&buf[strlen(buf)], HWVER, strlen(HWVER));
-    buf[strlen(buf)] = ',';
-    strncpy(&buf[strlen(buf)], COMPATIBILITYMODE, strlen(COMPATIBILITYMODE));
+    snprintf(buf, sizeof(buf), "VERSION,%s,%s,%s", SWVER, HWVER, COMPATIBILITYMODE);
     Write((uint8_t*)buf, strlen(buf));
 }
 
@@ -139,30 +134,39 @@ static void Function_SETID(char* str, write_func Write)
             UART_Set_Address(num);
         }
     }
+
+    // Echo
+    char buf[10] = {0};
+    snprintf(buf, sizeof(buf), "SETID,%u", UART_Address);
+    Write((uint8_t*)buf, strlen(buf));
 }
 
 static void Function_GETID(char* str, write_func Write)
 {
     char buf[10] = {0};
-    strncpy(buf, "ID:", 3);
-    itoa(UART_Address, &buf[strlen(buf)], 10);
-
+    snprintf(buf, sizeof(buf), "ID,%u", UART_Address);
     Write((uint8_t*)buf, strlen(buf));
 }
 
 static void Function_USB(char* str, write_func Write)
 {
     g_communication_interface = USB;
+
+    // Echo
+    Write((uint8_t*)"USB", 3);
 }
 
 static void Function_UART(char* str, write_func Write)
 {
     g_communication_interface = UART;
+
+    // Echo
+    Write((uint8_t*)"UART", 4);
 }
 
 static void Function_PING(char* str, write_func Write)
 {
-    Write((uint8_t*)"OK", 2);
+    Write((uint8_t*)"PING", 4);
 }
 
 static void Function_START(char* str, write_func Write)
@@ -173,12 +177,18 @@ static void Function_START(char* str, write_func Write)
     }
     newSettings = 1;
     Start();
+
+    // Echo
+    Write((uint8_t*)"START", 5);
 }
 
 static void Function_STOP(char* str, write_func Write)
 {
     newSettings = 1;
     Stop();
+
+    // Echo
+    Write((uint8_t*)"STOP", 4);
 }
 
 static void Function_SETPERIOD(char* str, write_func Write)
@@ -192,6 +202,11 @@ static void Function_SETPERIOD(char* str, write_func Write)
             TIM_Update_REGS();
         }
     }
+
+    // Echo
+    char buf[30];
+    snprintf(buf, sizeof(buf), "SETPERIOD,%u", timer_period_us);
+    Write((uint8_t*)buf, strlen(buf));
 }
 
 // Set Channel. Example SETCH,0,140,240,32460,32560 // first param: channel number - coresponds to PIN numbers (0 - PIN0, 1 - PIN1, ...)
@@ -218,7 +233,7 @@ static void Function_SETCH(char* str, write_func Write)
     int timeArray[20] = {0};
     int elementsFound = StrToInts(str, timeArray, sizeof(timeArray) / sizeof(*timeArray));
 
-    for (int i_el = 0; i_el < elementsFound; i_el++) {
+    for (int i_el = 0; i_el < elementsFound; ++i_el) {
         if (timeArray[i_el] < g_time[0]) {
             // Lowest value doesn't exist in g_time array
             Insert(chNum, i_el, timeArray[i_el], 0);
@@ -251,12 +266,20 @@ static void Function_SETCH(char* str, write_func Write)
             Insert(chNum, i_el, timeArray[i_el], idx);
         }
     }
+
+    // Echo
+    char buf[100];
+    snprintf(buf, sizeof(buf), "SETCH,%u", chNum);
+    for (int i = 0; i < elementsFound; ++i) {
+        snprintf(&buf[strlen(buf)], sizeof(buf) - strlen(buf), ",%u", timeArray[i]);
+    }
+    Write((uint8_t*)buf, strlen(buf));
 }
 
 static void Function_GETPERIOD(char* str, write_func Write)
 {
-    char buf[30]; // don't need to zero it out
-    snprintf(buf, sizeof(buf), "PERIOD,%u\n", timer_period_us);
+    char buf[30];
+    snprintf(buf, sizeof(buf), "PERIOD,%u", timer_period_us);
 
     Write((uint8_t*)buf, strlen(buf));
 }
@@ -283,8 +306,8 @@ static int WriteChannelSettings(char* buf, int max_size, int ch)
 
 static void Function_GETCH(char* str, write_func Write)
 {
-    char buf[100]; // don't need to zero it out
-    int  ch = -1;  // default is an invalid ch num
+    char buf[100];
+    int  ch = -1; // default is an invalid ch num
 
     // Get channel number
     /////////////////////
@@ -302,15 +325,12 @@ static void Function_GETCH(char* str, write_func Write)
     // Write channel settings
     WriteChannelSettings(&buf[strlen(buf)], sizeof(buf) - strlen(buf), ch);
 
-    // Append newline
-    snprintf(&buf[strlen(buf)], sizeof(buf) - strlen(buf), "\n");
-
     Write((uint8_t*)buf, strlen(buf));
 }
 
 static void Function_GETSETTINGS(char* str, write_func Write)
 {
-    char buf[500]; // don't need to zero it out
+    char buf[500];
     snprintf(buf, sizeof(buf), "PERIOD,%u\n", timer_period_us);
 
     char tmp_buf[100];
@@ -331,7 +351,7 @@ static struct {
     const char* name;
     void (*Func)(char*, write_func);
 } command[] = {
-    COMMAND(GETVERSION),
+    COMMAND(VERSION),
     COMMAND(SETID),
     COMMAND(GETID),
     COMMAND(USB),
