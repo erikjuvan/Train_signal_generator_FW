@@ -25,8 +25,6 @@ extern const uint32_t GPIOPinArray[];
 
 extern uint8_t UART_Address;
 
-extern CommunicationMode g_communication_mode;
-
 static const char Delims[] = "\n\r\t, ";
 
 static int newSettings     = 0;

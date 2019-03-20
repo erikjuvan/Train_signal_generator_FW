@@ -27,8 +27,6 @@ int         VCP_read(void* pBuffer, int size);
 int         VCP_write(const void* pBuffer, int size);
 extern char g_VCPInitialized;
 
-extern CommunicationMode g_communication_mode;
-
 const uint32_t GPIOPinArray[] = {
     GPIO_PIN_0,
     GPIO_PIN_1,
@@ -324,9 +322,7 @@ static void Init()
 
 void COM_UART_RX_Complete_Callback(uint8_t* buf, int size)
 {
-    if (g_communication_mode == ASCII) { // ASCII mode
-        Parse((char*)buf, UARTWrite);
-    }
+    Parse((char*)buf, UARTWrite);
 }
 
 int main()
