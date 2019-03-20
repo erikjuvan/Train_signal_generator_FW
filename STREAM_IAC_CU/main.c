@@ -27,6 +27,8 @@ int         VCP_read(void* pBuffer, int size);
 int         VCP_write(const void* pBuffer, int size);
 extern char g_VCPInitialized;
 
+extern CommunicationMode g_communication_mode;
+
 const uint32_t GPIOPinArray[] = {
     GPIO_PIN_0,
     GPIO_PIN_1,
@@ -68,9 +70,6 @@ const int IsGPIOReversePin[] = {
 uint32_t g_pins[MAX_STATES] = {0};
 uint32_t g_time[MAX_STATES] = {0};
 uint32_t g_num_of_entries   = 0;
-
-extern CommunicationMode      g_communication_mode;
-extern CommunicationInterface g_communication_interface;
 
 // printf functionality
 /////////////////////////////////////

@@ -25,8 +25,7 @@ extern const uint32_t GPIOPinArray[];
 
 extern uint8_t UART_Address;
 
-extern CommunicationMode      g_communication_mode;
-extern CommunicationInterface g_communication_interface;
+extern CommunicationMode g_communication_mode;
 
 static const char Delims[] = "\n\r\t, ";
 
@@ -146,22 +145,6 @@ static void Function_GETID(char* str, write_func Write)
     char buf[10] = {0};
     snprintf(buf, sizeof(buf), "ID,%u", UART_Address);
     Write((uint8_t*)buf, strlen(buf));
-}
-
-static void Function_USB(char* str, write_func Write)
-{
-    g_communication_interface = USB;
-
-    // Echo
-    Write((uint8_t*)"USB", 3);
-}
-
-static void Function_UART(char* str, write_func Write)
-{
-    g_communication_interface = UART;
-
-    // Echo
-    Write((uint8_t*)"UART", 4);
 }
 
 static void Function_PING(char* str, write_func Write)
@@ -354,8 +337,6 @@ static struct {
     COMMAND(VERSION),
     COMMAND(SETID),
     COMMAND(GETID),
-    COMMAND(USB),
-    COMMAND(UART),
     COMMAND(PING),
 
     COMMAND(START),
