@@ -115,6 +115,17 @@ static void Insert(uint32_t ch_num, int ch_idx, int time_val, int time_idx)
     g_num_of_entries++;
 }
 
+static void Function_RESET(char* str, write_func Write)
+{
+    // Echo
+    Write((uint8_t*)"RESET", 5);
+
+    // Give it time to send string back
+    HAL_Delay(100);
+
+    NVIC_SystemReset();
+}
+
 static void Function_VERSION(char* str, write_func Write)
 {
     char buf[100] = {0};
@@ -336,6 +347,7 @@ static struct {
     COMMAND(SETID),
     COMMAND(GETID),
     COMMAND(PING),
+    COMMAND(RESET),
 
     COMMAND(START),
     COMMAND(STOP),
