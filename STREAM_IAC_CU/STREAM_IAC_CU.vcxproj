@@ -14,7 +14,7 @@
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{9789DF72-391B-4E1C-9DCC-A736398C21D3}</ProjectGuid>
     <BSP_ID>com.sysprogs.arm.stm32</BSP_ID>
-    <BSP_VERSION>2018.08</BSP_VERSION>
+    <BSP_VERSION>2018.12R2</BSP_VERSION>
     <InPlaceBSPSubdir />
     <ProjectName>STREAM_IAC_CU</ProjectName>
   </PropertyGroup>
@@ -286,7 +286,7 @@
     <None Include="STREAM_IAC_CU-Release.vgdbsettings" />
     <None Include="stm32.xml" />
     <ClCompile Include="$(BSP_ROOT)\STM32F7xxxx\StartupFiles\startup_stm32f745xx.c" />
-    <ClCompile Include="$(BSP_ROOT)\STM32F7xxxx\STM32F7xx_HAL_Driver\Src\Legacy\stm32f7xx_hal_can.c" />
     <ClInclude Include="$(BSP_ROOT)\STM32F7xxxx\STM32F7xx_HAL_Driver\Inc\Legacy\stm32f7xx_hal_can_legacy.h" />
+    <ClCompile Include="$(BSP_ROOT)\STM32F7xxxx\STM32F7xx_HAL_Driver\Src\stm32f7xx_hal_can.c" />
   </ItemGroup>
 </Project>

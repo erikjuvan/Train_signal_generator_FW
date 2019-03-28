@@ -699,9 +699,6 @@
     <ClCompile Include="$(BSP_ROOT)\STM32F7xxxx\StartupFiles\startup_stm32f745xx.c">
       <Filter>Source files\Device-specific files</Filter>
     </ClCompile>
-    <ClCompile Include="$(BSP_ROOT)\STM32F7xxxx\STM32F7xx_HAL_Driver\Src\Legacy\stm32f7xx_hal_can.c">
-      <Filter>Source files\Device-specific files\HAL</Filter>
-    </ClCompile>
     <ClInclude Include="$(BSP_ROOT)\STM32F7xxxx\STM32F7xx_HAL_Driver\Inc\Legacy\stm32f7xx_hal_can_legacy.h">
       <Filter>Header files\Device-specific files\HAL</Filter>
     </ClInclude>
@@ -713,6 +710,9 @@
     </ClCompile>
     <ClCompile Include="communication.c">
       <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(BSP_ROOT)\STM32F7xxxx\STM32F7xx_HAL_Driver\Src\stm32f7xx_hal_can.c">
+      <Filter>Source files\Device-specific files\HAL</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -7,7 +7,7 @@
     <Revision>3</Revision>
   </ToolchainVersion>
   <BspID>com.sysprogs.arm.stm32</BspID>
-  <BspVersion>2018.08</BspVersion>
+  <BspVersion>2018.12R2</BspVersion>
   <McuID>STM32F745VE</McuID>
   <MCUDefinitionFile>STM32F7xxxx/DeviceDefinitions/stm32f745xx.xml</MCUDefinitionFile>
   <MCUProperties>
@@ -37,8 +37,8 @@
   <BSPSourceFolderName>Device-specific files</BSPSourceFolderName>
   <MCUMakFile>stm32.mak</MCUMakFile>
   <ReferencedFrameworks>
-    <string>com.sysprogs.arm.stm32.hal</string>
     <string>com.sysprogs.arm.stm32.usbdev</string>
+    <string>com.sysprogs.arm.stm32.hal</string>
   </ReferencedFrameworks>
   <FrameworkProperties>
     <Entries>
@@ -49,6 +49,10 @@
       <KeyValue>
         <Key>com.sysprogs.bspoptions.stm32.usb.speed</Key>
         <Value>FS</Value>
+      </KeyValue>
+      <KeyValue>
+        <Key>com.sysprogs.stm32.legacy_hal_src</Key>
+        <Value />
       </KeyValue>
     </Entries>
   </FrameworkProperties>
