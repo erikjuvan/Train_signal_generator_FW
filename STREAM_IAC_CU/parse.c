@@ -1,5 +1,6 @@
-// C Standar Library
+// C Standard Library
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -115,10 +116,10 @@ static void Insert(uint32_t ch_num, int ch_idx, int time_val, int time_idx)
     g_num_of_entries++;
 }
 
-static void Function_RESET(char* str, write_func Write)
+static void Function_RSET(char* str, write_func Write)
 {
     // Echo
-    Write((uint8_t*)"RESET", 5);
+    Write((uint8_t*)"RSET", 4);
 
     // Give it time to send string back
     HAL_Delay(100);
@@ -126,14 +127,14 @@ static void Function_RESET(char* str, write_func Write)
     NVIC_SystemReset();
 }
 
-static void Function_VERSION(char* str, write_func Write)
+static void Function_VERG(char* str, write_func Write)
 {
     char buf[100] = {0};
-    snprintf(buf, sizeof(buf), "VERSION,%s,%s,%s", SWVER, HWVER, COMPATIBILITYMODE);
+    snprintf(buf, sizeof(buf), "VERG,%s,%s,%s", SWVER, HWVER, COMPATIBILITYMODE);
     Write((uint8_t*)buf, strlen(buf));
 }
 
-static void Function_SETID(char* str, write_func Write)
+static void Function_ID_S(char* str, write_func Write)
 {
     str = strtok(NULL, Delims);
     if (str != NULL) {
@@ -145,14 +146,14 @@ static void Function_SETID(char* str, write_func Write)
 
     // Echo
     char buf[10] = {0};
-    snprintf(buf, sizeof(buf), "SETID,%u", UART_Address);
+    snprintf(buf, sizeof(buf), "ID_S,%u", UART_Address);
     Write((uint8_t*)buf, strlen(buf));
 }
 
-static void Function_GETID(char* str, write_func Write)
+static void Function_ID_G(char* str, write_func Write)
 {
     char buf[10] = {0};
-    snprintf(buf, sizeof(buf), "ID,%u", UART_Address);
+    snprintf(buf, sizeof(buf), "ID_G,%u", UART_Address);
     Write((uint8_t*)buf, strlen(buf));
 }
 
@@ -161,7 +162,7 @@ static void Function_PING(char* str, write_func Write)
     Write((uint8_t*)"PING", 4);
 }
 
-static void Function_START(char* str, write_func Write)
+static void Function_STRT(char* str, write_func Write)
 {
     if (needsCorrecting) {
         CorrectValues();
@@ -171,7 +172,7 @@ static void Function_START(char* str, write_func Write)
     Start();
 
     // Echo
-    Write((uint8_t*)"START", 5);
+    Write((uint8_t*)"STRT", 4);
 }
 
 static void Function_STOP(char* str, write_func Write)
@@ -183,7 +184,7 @@ static void Function_STOP(char* str, write_func Write)
     Write((uint8_t*)"STOP", 4);
 }
 
-static void Function_SETPERIOD(char* str, write_func Write)
+static void Function_PRDS(char* str, write_func Write)
 {
     str = strtok(NULL, Delims); // param - PERIOD [us]
     if (str != NULL) {
@@ -197,13 +198,13 @@ static void Function_SETPERIOD(char* str, write_func Write)
 
     // Echo
     char buf[30];
-    snprintf(buf, sizeof(buf), "SETPERIOD,%u", timer_period_us);
+    snprintf(buf, sizeof(buf), "PRDS,%u", timer_period_us);
     Write((uint8_t*)buf, strlen(buf));
 }
 
-// Set Channel. Example SETCH,0,140,240,32460,32560 // first param: channel number - coresponds to PIN numbers (0 - PIN0, 1 - PIN1, ...)
+// Set Channel. Example CHLS,0,140,240,32460,32560 // first param: channel number - coresponds to PIN numbers (0 - PIN0, 1 - PIN1, ...)
 // second param: on g_time, third param: off g_time ... toggle so on
-static void Function_SETCH(char* str, write_func Write)
+static void Function_CHLS(char* str, write_func Write)
 {
     int found = 0;
 
@@ -261,17 +262,17 @@ static void Function_SETCH(char* str, write_func Write)
 
     // Echo
     char buf[100];
-    snprintf(buf, sizeof(buf), "SETCH,%u", chNum);
+    snprintf(buf, sizeof(buf), "CHLS,%u", chNum);
     for (int i = 0; i < elementsFound; ++i) {
         snprintf(&buf[strlen(buf)], sizeof(buf) - strlen(buf), ",%u", timeArray[i]);
     }
     Write((uint8_t*)buf, strlen(buf));
 }
 
-static void Function_GETPERIOD(char* str, write_func Write)
+static void Function_PRDG(char* str, write_func Write)
 {
     char buf[30];
-    snprintf(buf, sizeof(buf), "PERIOD,%u", timer_period_us);
+    snprintf(buf, sizeof(buf), "PRDG,%u", timer_period_us);
 
     Write((uint8_t*)buf, strlen(buf));
 }
@@ -296,7 +297,7 @@ static int WriteChannelSettings(char* buf, int max_size, int ch)
     return written;
 }
 
-static void Function_GETCH(char* str, write_func Write)
+static void Function_CHLG(char* str, write_func Write)
 {
     char buf[100];
     int  ch = -1; // default is an invalid ch num
@@ -312,7 +313,7 @@ static void Function_GETCH(char* str, write_func Write)
     /////////////////////
 
     // Write channel number
-    snprintf(buf, sizeof(buf), "CH,%u,", ch);
+    snprintf(buf, sizeof(buf), "CHLG,%u,", ch);
 
     // Write channel settings
     WriteChannelSettings(&buf[strlen(buf)], sizeof(buf) - strlen(buf), ch);
@@ -320,7 +321,7 @@ static void Function_GETCH(char* str, write_func Write)
     Write((uint8_t*)buf, strlen(buf));
 }
 
-static void Function_GETSETTINGS(char* str, write_func Write)
+static void Function_STTG(char* str, write_func Write)
 {
     char buf[500];
     snprintf(buf, sizeof(buf), "PERIOD,%u\n", timer_period_us);
@@ -343,36 +344,35 @@ static struct {
     const char* name;
     void (*Func)(char*, write_func);
 } command[] = {
-    COMMAND(VERSION),
-    COMMAND(SETID),
-    COMMAND(GETID),
-    COMMAND(PING),
-    COMMAND(RESET),
+    COMMAND(VERG), // GET VERION
+    COMMAND(ID_S), // SET ID
+    COMMAND(ID_G), // GET ID
+    COMMAND(PING), // PING (echo)
+    COMMAND(RSET), // RESET
 
-    COMMAND(START),
-    COMMAND(STOP),
+    COMMAND(STRT), // START
+    COMMAND(STOP), // STOP
 
-    //COMMAND(SETFREQ), // No need for it
-    COMMAND(SETPERIOD),
-    COMMAND(SETCH),
+    COMMAND(PRDS), // SET PERIOD
+    COMMAND(CHLS), // SET CHANNEL
 
-    //COMMAND(GETFREQ), // No need for it
-    COMMAND(GETPERIOD),
-    COMMAND(GETCH),
-    COMMAND(GETSETTINGS)};
+    COMMAND(PRDG), // GET PERIOD
+    COMMAND(CHLG), // GET CHANNEL
+    COMMAND(STTG), // GET ALL SETTINGS
+};
 
 /* Example program
 STOP
-SETPERIOD,65000
-SETCH,0,140,240,32460,32560
-SETCH,5,490,502
-SETCH,6,752,762
-SETCH,2,32810,32830
-SETCH,3,33080,33100
-SETCH,7,100,220,470,13970,32420,32540,32790,46290
-SETCH,1,470,482,732,13982,32790,32810,33060,46560
-SETCH,4,1,32560
-START
+PRDS,65000
+CHLS,0,140,240,32460,32560
+CHLS,5,490,502
+CHLS,6,752,762
+CHLS,2,32810,32830
+CHLS,3,33080,33100
+CHLS,7,100,220,470,13970,32420,32540,32790,46290
+CHLS,1,470,482,732,13982,32790,32810,33060,46560
+CHLS,4,1,32560
+STRT
 */
 
 void Parse(char* string, write_func Write)
@@ -383,7 +383,7 @@ void Parse(char* string, write_func Write)
     while (str != NULL) {
 
         for (int i = 0; i < sizeof(command) / sizeof(command[0]); ++i) {
-            if (strcmp(str, command[i].name) == 0) {
+            if (*(uint32_t*)str == *(uint32_t*)command[i].name) {
                 command[i].Func(str, Write);
                 break;
             }
