@@ -227,8 +227,11 @@ static void DMA_Stop()
 
 void DMA_Update(uint32_t n_entries)
 {
-    DMA2_Stream0->NDTR = n_entries;
-    DMA2_Stream4->NDTR = n_entries;
+    // Only update when DMA is disabled
+    if (!(DMA2_Stream0->CR & DMA_SxCR_EN) && !(DMA2_Stream4->CR & DMA_SxCR_EN)) {
+        DMA2_Stream0->NDTR = n_entries;
+        DMA2_Stream4->NDTR = n_entries;
+    }
 }
 /////////////////////////////////////
 
