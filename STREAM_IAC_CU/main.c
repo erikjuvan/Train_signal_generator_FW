@@ -27,6 +27,8 @@ int         VCP_read(void* pBuffer, int size);
 int         VCP_write(const void* pBuffer, int size);
 extern char g_VCPInitialized;
 
+static void Stop();
+
 const uint32_t GPIOPinArray[] = {
     GPIO_PIN_0,
     GPIO_PIN_1,
@@ -65,9 +67,12 @@ const int IsGPIOReversePin[] = {
     0  // GPIO_PIN_15
 };
 
-uint32_t g_pins[MAX_STATES] = {0};
-uint32_t g_time[MAX_STATES] = {0};
-uint32_t g_num_of_entries   = 0;
+uint32_t g_pins[MAX_STATES] = {0}, g_pins_shadow[MAX_STATES] = {0};
+uint32_t g_time[MAX_STATES] = {0}, g_time_shadow[MAX_STATES] = {0};
+uint32_t g_num_of_entries = 0;
+
+static char stop_request          = 0;
+char        new_settings_received = 0;
 
 // printf functionality
 /////////////////////////////////////
@@ -101,6 +106,23 @@ void SysTick_Handler(void)
 void OTG_FS_IRQHandler(void)
 {
     HAL_PCD_IRQHandler(&hpcd);
+}
+void TIM2_IRQHandler()
+{
+    // If update interrupt
+    if (TIM2->SR & TIM_SR_UIF) {
+        // Disable Update Interrupt
+        TIM2->DIER &= ~TIM_DIER_UIE;
+        // Clear Update interrupt pending flag
+        TIM2->SR &= ~TIM_SR_UIF;
+        // Leave one pulse mode
+        TIM2->CR1 &= ~TIM_CR1_OPM;
+
+        if (stop_request) {
+            stop_request = 0;
+            Stop();
+        }
+    }
 }
 /////////////////////////////////////
 
@@ -228,17 +250,21 @@ static void TIM_Configure()
     TIM1->SMCR |= TIM_SMCR_TS_0;
     TIM1->SMCR |= TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1; // I don't completely understand why it has to be exactly so
 
-    /* Use for testing 
-	// IRQ enable
+    // Enable TIM2 interrupts
+    HAL_NVIC_SetPriority(TIM2_IRQn, 3, 0);
+    HAL_NVIC_EnableIRQ(TIM2_IRQn);
+
+    /* Use for testing (NOT TESTED)
+	// IRQ enable TIM1
 	TIM1->DIER |= TIM_DIER_TIE;
 	HAL_NVIC_SetPriority(TIM1_TRG_COM_TIM11_IRQn, 1, 0);
 	HAL_NVIC_EnableIRQ(TIM1_TRG_COM_TIM11_IRQn);
-	
-	// IRQ handler
+        
+    // IRQ handler
 	void TIM1_TRG_COM_TIM11_IRQHandler() {	
-		TIM1->SR = ~TIM_DIER_TIE;
+		TIM1->SR &= ~TIM_SR_TIF;
 		asm("nop");
-	}	
+	}
 	*/
 }
 
@@ -275,7 +301,19 @@ void EXTI_Configure()
     HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 }
 
-void Stop()
+void StopRequest()
+{
+    // Set stop request flag (used in TIM2 interrupt)
+    stop_request = 1;
+
+    // Sequence here matters!
+    // FIRST!!! Enter One Pulse Mode, so that counter stops after next update event
+    TIM2->CR1 |= TIM_CR1_OPM;
+    // THEN!!! Enable update interrupt (UIE) to allow for data sync after the sequence has finished
+    TIM2->DIER |= TIM_DIER_UIE;
+}
+
+static void Stop()
 {
     // ORDER OF FUNCTION CALLS MATTERS!!!
     TIM_Stop();
@@ -285,10 +323,27 @@ void Stop()
     SetInitialGPIOState();
 }
 
-void Start()
+static void Start()
 {
     DMA_Start();
     TIM_Start();
+}
+
+void StartRequest()
+{
+    if (new_settings_received) {
+        new_settings_received = 0;
+
+        // Copy values from shadow registers
+        for (int i = 0; i < g_num_of_entries; ++i) {
+            g_pins[i] = g_pins_shadow[i];
+            g_time[i] = g_time_shadow[i];
+        }
+
+        DMA_Update(g_num_of_entries);
+    }
+
+    Start();
 }
 
 static void USB_Init()

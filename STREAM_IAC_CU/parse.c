@@ -14,12 +14,14 @@ extern void TIM_Update_ARR(uint32_t arr);
 extern void TIM_Update_PSC(uint32_t psc);
 extern void TIM_Update_REGS();
 extern void DMA_Update(uint32_t n_entries);
-extern void Stop();
-extern void Start();
+extern void StopRequest();
+extern void StartRequest();
 
-extern uint32_t g_pins[];
-extern uint32_t g_time[];
+extern uint32_t g_pins_shadow[MAX_STATES];
+extern uint32_t g_time_shadow[MAX_STATES];
 extern uint32_t g_num_of_entries;
+
+extern char new_settings_received;
 
 extern const int      IsGPIOReversePin[];
 extern const uint32_t GPIOPinArray[];
@@ -36,7 +38,7 @@ static int timer_period_us = 0;
 static void ClearSettings()
 {
     for (int i = 0; i < MAX_STATES; i++) {
-        g_pins[i] = g_time[i] = 0;
+        g_pins_shadow[i] = g_time_shadow[i] = 0;
     }
     g_num_of_entries = 0;
 }
@@ -44,16 +46,16 @@ static void ClearSettings()
 void CorrectValues()
 {
     // Shift values in the g_time array to correct for the inherent offset in the functionality
-    int tmpTime = g_time[0];
+    int tmpTime = g_time_shadow[0];
     for (int i = 0; i < g_num_of_entries - 1; i++) {
-        g_time[i] = g_time[i + 1];
+        g_time_shadow[i] = g_time_shadow[i + 1];
     }
-    g_time[g_num_of_entries - 1] = tmpTime;
-    needsCorrecting              = 0;
+    g_time_shadow[g_num_of_entries - 1] = tmpTime;
+    needsCorrecting                     = 0;
 
     // Increase the g_time array by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
     for (int i = 0; i < g_num_of_entries; i++) {
-        g_time[i] *= 4;
+        g_time_shadow[i] *= 4;
     }
 }
 
@@ -95,10 +97,10 @@ static void Update(uint32_t ch_num, int ch_idx, int time_val, int time_idx)
 
     if (!IsGPIOReversePin[ch_num]) {
         // Pin is NOT reversed
-        g_pins[time_idx] |= ch_idx % 2 == 0 ? gpio_pin : gpio_pin << 16;
+        g_pins_shadow[time_idx] |= ch_idx % 2 == 0 ? gpio_pin : gpio_pin << 16;
     } else {
         // Pin is reversed
-        g_pins[time_idx] |= ch_idx % 2 == 1 ? gpio_pin : gpio_pin << 16;
+        g_pins_shadow[time_idx] |= ch_idx % 2 == 1 ? gpio_pin : gpio_pin << 16;
     }
 }
 
@@ -107,11 +109,11 @@ static void Insert(uint32_t ch_num, int ch_idx, int time_val, int time_idx)
     if (g_num_of_entries >= MAX_STATES)
         return;
     for (int i = g_num_of_entries; i > time_idx; i--) {
-        g_time[i] = g_time[i - 1];
-        g_pins[i] = g_pins[i - 1];
+        g_time_shadow[i] = g_time_shadow[i - 1];
+        g_pins_shadow[i] = g_pins_shadow[i - 1];
     }
-    g_time[time_idx] = time_val;
-    g_pins[time_idx] = 0;
+    g_time_shadow[time_idx] = time_val;
+    g_pins_shadow[time_idx] = 0;
     Update(ch_num, ch_idx, time_val, time_idx);
     g_num_of_entries++;
 }
@@ -166,10 +168,10 @@ static void Function_STRT(char* str, write_func Write)
 {
     if (needsCorrecting) {
         CorrectValues();
-        DMA_Update(g_num_of_entries);
+        new_settings_received = 1;
     }
     newSettings = 1;
-    Start();
+    StartRequest();
 
     // Echo
     Write((uint8_t*)"STRT", 4);
@@ -178,7 +180,7 @@ static void Function_STRT(char* str, write_func Write)
 static void Function_STOP(char* str, write_func Write)
 {
     newSettings = 1;
-    Stop();
+    StopRequest();
 
     // Echo
     Write((uint8_t*)"STOP", 4);
@@ -227,11 +229,11 @@ static void Function_CHLS(char* str, write_func Write)
     int elementsFound = StrToInts(str, timeArray, sizeof(timeArray) / sizeof(*timeArray));
 
     for (int i_el = 0; i_el < elementsFound; ++i_el) {
-        if (timeArray[i_el] < g_time[0]) {
+        if (timeArray[i_el] < g_time_shadow[0]) {
             // Lowest value doesn't exist in g_time array
             Insert(chNum, i_el, timeArray[i_el], 0);
             continue;
-        } else if (timeArray[i_el] > g_time[g_num_of_entries - 1]) {
+        } else if (timeArray[i_el] > g_time_shadow[g_num_of_entries - 1]) {
             // Highest value doesn't exist in g_time array
             Insert(chNum, i_el, timeArray[i_el], g_num_of_entries);
             continue;
@@ -241,9 +243,9 @@ static void Function_CHLS(char* str, write_func Write)
 
         found = 0;
         for (int i_ent = 0; i_ent < g_num_of_entries; i_ent++) {
-            if (g_time[i_ent] == timeArray[i_el]) {
+            if (g_time_shadow[i_ent] == timeArray[i_el]) {
                 // Time already exists
-                Update(chNum, i_el, g_time[i_ent], i_ent);
+                Update(chNum, i_el, g_time_shadow[i_ent], i_ent);
                 found = 1;
                 break;
             }
@@ -253,7 +255,7 @@ static void Function_CHLS(char* str, write_func Write)
         if (!found) {
             int idx = 0;
             for (idx = 0; idx < g_num_of_entries; idx++)
-                if (g_time[idx] > timeArray[i_el])
+                if (g_time_shadow[idx] > timeArray[i_el])
                     break;
 
             Insert(chNum, i_el, timeArray[i_el], idx);
@@ -283,12 +285,12 @@ static int WriteChannelSettings(char* buf, int max_size, int ch)
     buf[0]      = 0;
     // Write times for said channel
     for (int i = 0; i < g_num_of_entries; ++i) {
-        if (g_pins[i] & GPIOPinArray[ch] || (g_pins[i] & GPIOPinArray[ch] << 16)) // take into account setting and reseting
+        if (g_pins_shadow[i] & GPIOPinArray[ch] || (g_pins_shadow[i] & GPIOPinArray[ch] << 16)) // take into account setting and reseting
         {
             if (i == 0) // fetch last time entry
-                written += snprintf(&buf[strlen(buf)], max_size - strlen(buf), "%lu,", g_time[g_num_of_entries - 1] / 4);
+                written += snprintf(&buf[strlen(buf)], max_size - strlen(buf), "%lu,", g_time_shadow[g_num_of_entries - 1] / 4);
             else
-                written += snprintf(&buf[strlen(buf)], max_size - strlen(buf), "%lu,", g_time[i - 1] / 4);
+                written += snprintf(&buf[strlen(buf)], max_size - strlen(buf), "%lu,", g_time_shadow[i - 1] / 4);
         }
     }
     if (strlen(buf) > 0)
