@@ -27,8 +27,6 @@ int         VCP_read(void* pBuffer, int size);
 int         VCP_write(const void* pBuffer, int size);
 extern char g_VCPInitialized;
 
-static void Stop();
-
 const uint32_t GPIOPinArray[] = {
     GPIO_PIN_0,
     GPIO_PIN_1,
@@ -67,12 +65,17 @@ const int IsGPIOReversePin[] = {
     0  // GPIO_PIN_15
 };
 
+int g_timer_period_us = 0;
+
+char g_new_settings_received = 0;
+
 uint32_t g_pins[MAX_STATES] = {0}, g_pins_shadow[MAX_STATES] = {0};
 uint32_t g_time[MAX_STATES] = {0}, g_time_shadow[MAX_STATES] = {0};
 uint32_t g_num_of_entries = 0;
 
-static char stop_request          = 0;
-char        new_settings_received = 0;
+static char stop_request = 0;
+
+static void Stop();
 
 // printf functionality
 /////////////////////////////////////
@@ -119,8 +122,8 @@ void TIM2_IRQHandler()
         TIM2->CR1 &= ~TIM_CR1_OPM;
 
         if (stop_request) {
-            stop_request = 0;
             Stop();
+            stop_request = 0; // reset flag after everything is stopped
         }
     }
 }
@@ -244,6 +247,7 @@ static void TIM_Configure()
     TIM2->PSC  = (uint32_t)(SystemCoreClock / 2) / 1e6 / 4 - 1; // Prescaler value that comes to one tick being 250 ns
     TIM2->ARR  = 0xFFFF;                                        // Reload timer
     TIM2->CCR1 = 1;
+    TIM2->CR1 |= TIM_CR1_ARPE; // Auto reload register is preloaded (ref. page 711)
     TIM2->CR2 |= TIM_CR2_MMS_0 | TIM_CR2_MMS_1;
     TIM2->EGR = TIM_EGR_UG; // Reset the counter and generate update event
     TIM2->SR  = 0;          // Clear interrupts
@@ -254,7 +258,7 @@ static void TIM_Configure()
     TIM1->SMCR |= TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1; // I don't completely understand why it has to be exactly so
 
     // Enable TIM2 interrupts
-    HAL_NVIC_SetPriority(TIM2_IRQn, 3, 0);
+    HAL_NVIC_SetPriority(TIM2_IRQn, 2, 0);
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
     /* Use for testing (NOT TESTED)
@@ -281,15 +285,15 @@ static void TIM_Stop()
     TIM2->CR1 &= ~TIM_CR1_CEN;
 }
 
-void TIM_Update_ARR(uint32_t arr)
+static void TIM_Update_ARR(uint32_t arr)
 {
     TIM2->ARR = arr;
 }
-void TIM_Update_PSC(uint32_t psc)
+static void TIM_Update_PSC(uint32_t psc)
 {
     TIM2->PSC = psc;
 }
-void TIM_Update_REGS()
+static void TIM_Update_REGS()
 {
     // ORDER OF STATEMENTS MATTERS!!!
     TIM2->CCR1 = 1;
@@ -297,33 +301,11 @@ void TIM_Update_REGS()
 }
 /////////////////////////////////////
 
-void EXTI_Configure()
+static void EXTI_Configure()
 {
     EXTI->IMR |= EXTI_IMR_IM0;
-    HAL_NVIC_SetPriority(EXTI0_IRQn, 2, 0);
+    HAL_NVIC_SetPriority(EXTI0_IRQn, 3, 0);
     HAL_NVIC_EnableIRQ(EXTI0_IRQn);
-}
-
-void StopRequest()
-{
-    // Set stop request flag (used in TIM2 interrupt)
-    stop_request = 1;
-
-    // Sequence here matters!
-    // FIRST!!! Enter One Pulse Mode, so that counter stops after next update event
-    TIM2->CR1 |= TIM_CR1_OPM;
-    // THEN!!! Enable update interrupt (UIE) to allow for data sync after the sequence has finished
-    TIM2->DIER |= TIM_DIER_UIE;
-}
-
-static void Stop()
-{
-    // ORDER OF FUNCTION CALLS MATTERS!!!
-    TIM_Stop();
-    DMA_Stop();
-    TIM_Update_REGS();
-
-    SetInitialGPIOState();
 }
 
 static void Start()
@@ -332,10 +314,23 @@ static void Start()
     TIM_Start();
 }
 
+static void Stop()
+{
+    // ORDER OF FUNCTION CALLS MATTERS!
+    TIM_Stop();
+    DMA_Stop();
+
+    SetInitialGPIOState();
+}
+
 void StartRequest()
 {
-    if (new_settings_received) {
-        new_settings_received = 0;
+    // Wait if stop request is in progress
+    while (stop_request)
+        ;
+
+    if (g_new_settings_received) {
+        g_new_settings_received = 0;
 
         // Copy values from shadow registers
         for (int i = 0; i < g_num_of_entries; ++i) {
@@ -344,9 +339,29 @@ void StartRequest()
         }
 
         DMA_Update(g_num_of_entries);
+
+        TIM_Update_ARR(g_timer_period_us * 4); // Increase by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
+        TIM_Update_REGS();
     }
 
     Start();
+}
+
+void StopRequest()
+{
+    // If timer is not running just return since it is already stopped
+    if (!(TIM2->CR1 & TIM_CR1_CEN))
+        return;
+
+    stop_request = 1;
+
+    // Stopping routine... sequence here matters!
+    // FIRST enter One Pulse Mode, so that counter stops after next update event
+    TIM2->CR1 |= TIM_CR1_OPM;
+    // THEN clear Update interrupt flag since it is set from the previous counter updates from normal operation
+    TIM2->SR &= ~TIM_SR_UIF;
+    // THEN enable update interrupt (UIE) to allow for data sync after the sequence has finished
+    TIM2->DIER |= TIM_DIER_UIE;
 }
 
 static void USB_Init()

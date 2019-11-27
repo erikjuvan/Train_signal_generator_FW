@@ -10,10 +10,6 @@
 #include "parse.h"
 #include "uart.h"
 
-extern void TIM_Update_ARR(uint32_t arr);
-extern void TIM_Update_PSC(uint32_t psc);
-extern void TIM_Update_REGS();
-extern void DMA_Update(uint32_t n_entries);
 extern void StopRequest();
 extern void StartRequest();
 
@@ -21,7 +17,7 @@ extern uint32_t g_pins_shadow[MAX_STATES];
 extern uint32_t g_time_shadow[MAX_STATES];
 extern uint32_t g_num_of_entries;
 
-extern char new_settings_received;
+extern char g_new_settings_received;
 
 extern const int      IsGPIOReversePin[];
 extern const uint32_t GPIOPinArray[];
@@ -33,7 +29,7 @@ static const char Delims[] = "\n\r\t, ";
 static int newSettings     = 0;
 static int needsCorrecting = 0;
 
-static int timer_period_us = 0;
+extern int g_timer_period_us;
 
 static void ClearSettings()
 {
@@ -168,7 +164,7 @@ static void Function_STRT(char* str, write_func Write)
 {
     if (needsCorrecting) {
         CorrectValues();
-        new_settings_received = 1;
+        g_new_settings_received = 1;
     }
     newSettings = 1;
     StartRequest();
@@ -192,15 +188,15 @@ static void Function_PRDS(char* str, write_func Write)
     if (str != NULL) {
         int period = atoi(str);
         if (period > 0) {
-            timer_period_us = period;
-            TIM_Update_ARR(timer_period_us * 4); // Increase by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
-            TIM_Update_REGS();
+            // This also triggers new settings received
+            g_new_settings_received = 1;
+            g_timer_period_us       = period;
         }
     }
 
     // Echo
     char buf[30];
-    snprintf(buf, sizeof(buf), "PRDS,%u", timer_period_us);
+    snprintf(buf, sizeof(buf), "PRDS,%u", g_timer_period_us);
     Write((uint8_t*)buf, strlen(buf));
 }
 
@@ -274,7 +270,7 @@ static void Function_CHLS(char* str, write_func Write)
 static void Function_PRDG(char* str, write_func Write)
 {
     char buf[30];
-    snprintf(buf, sizeof(buf), "PRDG,%u", timer_period_us);
+    snprintf(buf, sizeof(buf), "PRDG,%u", g_timer_period_us);
 
     Write((uint8_t*)buf, strlen(buf));
 }
@@ -326,7 +322,7 @@ static void Function_CHLG(char* str, write_func Write)
 static void Function_STTG(char* str, write_func Write)
 {
     char buf[500];
-    snprintf(buf, sizeof(buf), "PERIOD,%u\n", timer_period_us);
+    snprintf(buf, sizeof(buf), "PERIOD,%u\n", g_timer_period_us);
 
     char tmp_buf[100];
     for (int ch = 0; ch < NUM_OF_CHANNELS; ++ch) {
