@@ -65,9 +65,18 @@ const int IsGPIOReversePin[] = {
     0  // GPIO_PIN_15
 };
 
-uint32_t g_pins[MAX_STATES] = {0};
-uint32_t g_time[MAX_STATES] = {0};
-uint32_t g_num_of_entries   = 0;
+int g_timer_period_us = 0;
+
+char g_new_settings_received = 0;
+
+uint32_t g_pins[MAX_STATES] = {0}, g_pins_shadow[MAX_STATES] = {0};
+uint32_t g_time[MAX_STATES] = {0}, g_time_shadow[MAX_STATES] = {0};
+uint32_t g_num_of_entries = 0;
+
+static char stop_request = 0;
+
+static void Stop();
+static void Start();
 
 // printf functionality
 /////////////////////////////////////
@@ -101,6 +110,23 @@ void SysTick_Handler(void)
 void OTG_FS_IRQHandler(void)
 {
     HAL_PCD_IRQHandler(&hpcd);
+}
+void TIM2_IRQHandler()
+{
+    // If update interrupt
+    if (TIM2->SR & TIM_SR_UIF) {
+        // Disable Update Interrupt
+        TIM2->DIER &= ~TIM_DIER_UIE;
+        // Clear Update interrupt pending flag
+        TIM2->SR &= ~TIM_SR_UIF;
+        // Leave one pulse mode
+        TIM2->CR1 &= ~TIM_CR1_OPM;
+
+        if (stop_request) {
+            Stop();
+            stop_request = 0; // reset flag after everything is stopped
+        }
+    }
 }
 /////////////////////////////////////
 
@@ -167,6 +193,13 @@ static void GPIO_Configure()
     SetInitialGPIOState();
 }
 
+static void EXTI_Configure()
+{
+    EXTI->IMR |= EXTI_IMR_IM0;
+    HAL_NVIC_SetPriority(EXTI0_IRQn, 3, 0);
+    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+}
+
 // DMA
 /////////////////////////////////////
 static void DMA_Configure()
@@ -193,7 +226,6 @@ static void DMA_Start()
     while (!(DMA2_Stream0->CR & DMA_SxCR_EN) || !(DMA2_Stream4->CR & DMA_SxCR_EN))
         ; // wait for CE to be read as 1
 }
-
 static void DMA_Stop()
 {
     DMA2_Stream0->CR &= ~DMA_SxCR_EN;
@@ -202,11 +234,13 @@ static void DMA_Stop()
     while (DMA2_Stream0->CR & DMA_SxCR_EN || DMA2_Stream4->CR & DMA_SxCR_EN)
         ; // wait for CE to be read as 0
 }
-
-void DMA_Update(uint32_t n_entries)
+static void DMA_Update(uint32_t n_entries)
 {
-    DMA2_Stream0->NDTR = n_entries;
-    DMA2_Stream4->NDTR = n_entries;
+    // Only update when DMA is disabled
+    if (!(DMA2_Stream0->CR & DMA_SxCR_EN) && !(DMA2_Stream4->CR & DMA_SxCR_EN)) {
+        DMA2_Stream0->NDTR = n_entries;
+        DMA2_Stream4->NDTR = n_entries;
+    }
 }
 /////////////////////////////////////
 
@@ -216,29 +250,34 @@ static void TIM_Configure()
 {
     // TIM2 has to be configured before TIM1 otherwise TIM2 causes TIM1 IRQ when executing TIM2->EGR = TIM_EGR_UG;
     __TIM2_CLK_ENABLE();
-    TIM2->PSC  = (uint32_t)(SystemCoreClock / 2) / 1e6 / 4 - 1; // Prescaler value that comes to one tick being 250 ns
-    TIM2->ARR  = 0xFFFF;                                        // Reload timer
-    TIM2->CCR1 = 1;
+    TIM2->PSC = (uint32_t)(SystemCoreClock / 2) / 1e6 / 4 - 1; // Prescaler value that comes to one tick being 250 ns
     TIM2->CR2 |= TIM_CR2_MMS_0 | TIM_CR2_MMS_1;
-    TIM2->EGR = TIM_EGR_UG; // Reset the counter and generate update event
-    TIM2->SR  = 0;          // Clear interrupts
+    TIM2->EGR = TIM_EGR_UG; // Generate update event (this also loads the prescaler)
+    TIM2->SR  = 0;          // Clear update event in the status register that we triggered in the line above
+    // Thougt I needed this, turns out I don't, I needed it because I updated ARR somewhere async while timer was running, and this prevented ARR from updating on the spot.
+    // But now with improvements to the code, parser no longer directly configures peripherals.
+    //TIM2->CR1 |= TIM_CR1_ARPE; // Auto reload register is preloaded (ref. page 711)
 
     __TIM1_CLK_ENABLE();
     TIM1->DIER |= TIM_DIER_TDE;
     TIM1->SMCR |= TIM_SMCR_TS_0;
-    TIM1->SMCR |= TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1; // I don't completely understand why it has to be exactly so
+    TIM1->SMCR |= TIM_SMCR_SMS_2;
 
-    /* Use for testing 
-	// IRQ enable
+    // Enable TIM2 interrupts
+    HAL_NVIC_SetPriority(TIM2_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(TIM2_IRQn);
+
+    /* Use for testing (NOT TESTED)
+	// IRQ enable TIM1
 	TIM1->DIER |= TIM_DIER_TIE;
 	HAL_NVIC_SetPriority(TIM1_TRG_COM_TIM11_IRQn, 1, 0);
 	HAL_NVIC_EnableIRQ(TIM1_TRG_COM_TIM11_IRQn);
-	
-	// IRQ handler
+        
+    // IRQ handler
 	void TIM1_TRG_COM_TIM11_IRQHandler() {	
-		TIM1->SR = ~TIM_DIER_TIE;
+		TIM1->SR &= ~TIM_SR_TIF;
 		asm("nop");
-	}	
+	}
 	*/
 }
 
@@ -246,49 +285,74 @@ static void TIM_Start()
 {
     TIM2->CR1 |= TIM_CR1_CEN;
 }
-
 static void TIM_Stop()
 {
     TIM2->CR1 &= ~TIM_CR1_CEN;
 }
-
-void TIM_Update_ARR(uint32_t arr)
+static void TIM_Update_ARR(uint32_t arr)
 {
     TIM2->ARR = arr;
 }
-void TIM_Update_PSC(uint32_t psc)
-{
-    TIM2->PSC = psc;
-}
-void TIM_Update_REGS()
-{
-    // ORDER OF STATEMENTS MATTERS!!!
-    TIM2->CCR1 = 1;
-    TIM2->EGR  = TIM_EGR_UG;
-}
 /////////////////////////////////////
 
-void EXTI_Configure()
+// TODO: Think about maybe calling this and StopRequest from main where we check flags (start_request/stop_request)
+void StartRequest()
 {
-    EXTI->IMR |= EXTI_IMR_IM0;
-    HAL_NVIC_SetPriority(EXTI0_IRQn, 2, 0);
-    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+    // Wait if stop request is in progress
+    while (stop_request)
+        ;
+
+    if (g_new_settings_received) {
+        g_new_settings_received = 0;
+
+        // Copy values from shadow registers
+        for (int i = 0; i < g_num_of_entries; ++i) {
+            g_pins[i] = g_pins_shadow[i];
+            g_time[i] = g_time_shadow[i];
+        }
+
+        DMA_Update(g_num_of_entries);
+
+        // Increase by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
+        TIM_Update_ARR(g_timer_period_us * 4);
+
+        // Update CCR1 register with the last entry in the time array which is the time at which the first GPIO change should happen
+        // NOTE: First entry in the settings can't be 0 (TODO: look into it if there is a way to allow starting with 0)
+        TIM2->CCR1 = g_time[g_num_of_entries - 1];
+    }
+
+    Start();
 }
 
-void Stop()
-{
-    // ORDER OF FUNCTION CALLS MATTERS!!!
-    TIM_Stop();
-    DMA_Stop();
-    TIM_Update_REGS();
-
-    SetInitialGPIOState();
-}
-
-void Start()
+static void Start()
 {
     DMA_Start();
     TIM_Start();
+}
+
+void StopRequest()
+{
+    // If timer is not running just return since it is already stopped
+    if (!(TIM2->CR1 & TIM_CR1_CEN))
+        return;
+
+    stop_request = 1;
+
+    // Stopping routine... sequence here matters!
+    // FIRST enter One Pulse Mode, so that counter stops after next update event
+    TIM2->CR1 |= TIM_CR1_OPM;
+    // THEN clear Update interrupt flag since it is set from the previous counter updates from normal operation
+    TIM2->SR &= ~TIM_SR_UIF;
+    // THEN enable update interrupt (UIE) to allow for data sync after the sequence has finished
+    TIM2->DIER |= TIM_DIER_UIE;
+}
+
+static void Stop()
+{
+    TIM_Stop();
+    DMA_Stop();
+
+    SetInitialGPIOState();
 }
 
 static void USB_Init()

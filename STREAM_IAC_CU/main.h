@@ -11,7 +11,7 @@
 #define SetPins(port, x) port->BSRR = (uint32_t)x
 #define ResetPins(port, x) port->BSRR = ((uint32_t)x) << 16U
 
-#define MAX_STATES 50
+#define MAX_STATES 64
 
 #define PORT GPIOE
 #define PORT_CLK_ENABLE() __GPIOE_CLK_ENABLE()
