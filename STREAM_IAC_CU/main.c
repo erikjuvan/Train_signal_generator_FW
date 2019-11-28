@@ -261,7 +261,7 @@ static void TIM_Configure()
     __TIM1_CLK_ENABLE();
     TIM1->DIER |= TIM_DIER_TDE;
     TIM1->SMCR |= TIM_SMCR_TS_0;
-    TIM1->SMCR |= TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1; // I don't completely understand why it has to be exactly so
+    TIM1->SMCR |= TIM_SMCR_SMS_2;
 
     // Enable TIM2 interrupts
     HAL_NVIC_SetPriority(TIM2_IRQn, 2, 0);
