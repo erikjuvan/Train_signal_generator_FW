@@ -73,10 +73,10 @@ uint32_t g_pins[MAX_STATES] = {0}, g_pins_shadow[MAX_STATES] = {0};
 uint32_t g_time[MAX_STATES] = {0}, g_time_shadow[MAX_STATES] = {0};
 uint32_t g_num_of_entries = 0;
 
-static char stop_request = 0;
-
 static void Stop();
 static void Start();
+
+static char stop_request = 0, stopping_sequence_in_progress = 0;
 
 // printf functionality
 /////////////////////////////////////
@@ -115,16 +115,22 @@ void TIM2_IRQHandler()
 {
     // If update interrupt
     if (TIM2->SR & TIM_SR_UIF) {
-        // Disable Update Interrupt
-        TIM2->DIER &= ~TIM_DIER_UIE;
-        // Clear Update interrupt pending flag
-        TIM2->SR &= ~TIM_SR_UIF;
-        // Leave one pulse mode
-        TIM2->CR1 &= ~TIM_CR1_OPM;
+        // Clear Update interrupt pending flag (note: no need for SR &= ~TIM...)
+        TIM2->SR = ~TIM_SR_UIF;
 
-        if (stop_request) {
+        if (stopping_sequence_in_progress) {
+            // Stopping sequence ended. It is now safe to stop everything.
             Stop();
-            stop_request = 0; // reset flag after everything is stopped
+            // Leave one pulse mode
+            TIM2->CR1 &= ~TIM_CR1_OPM;
+            // Clear all stopping flags
+            stopping_sequence_in_progress = 0;
+            stop_request                  = 0;
+        } else if (stop_request) {
+            // On stop request enter one pulse mode
+            TIM2->CR1 |= TIM_CR1_OPM;
+            // Flag to signal that the final stopping sequence is active (ongoing)
+            stopping_sequence_in_progress = 1;
         }
     }
 }
@@ -252,8 +258,9 @@ static void TIM_Configure()
     __TIM2_CLK_ENABLE();
     TIM2->PSC = (uint32_t)(SystemCoreClock / 2) / 1e6 / 4 - 1; // Prescaler value that comes to one tick being 250 ns
     TIM2->CR2 |= TIM_CR2_MMS_0 | TIM_CR2_MMS_1;
-    TIM2->EGR = TIM_EGR_UG; // Generate update event (this also loads the prescaler)
-    TIM2->SR  = 0;          // Clear update event in the status register that we triggered in the line above
+    TIM2->EGR = TIM_EGR_UG;     // Generate update event (this also loads the prescaler)
+    TIM2->SR  = 0;              // Clear update event in the status register that we triggered in the line above
+    TIM2->DIER |= TIM_DIER_UIE; // Enable update interrupt
     // Thougt I needed this, turns out I don't, I needed it because I updated ARR somewhere async while timer was running, and this prevented ARR from updating on the spot.
     // But now with improvements to the code, parser no longer directly configures peripherals.
     //TIM2->CR1 |= TIM_CR1_ARPE; // Auto reload register is preloaded (ref. page 711)
@@ -295,11 +302,11 @@ static void TIM_Update_ARR(uint32_t arr)
 }
 /////////////////////////////////////
 
-// TODO: Think about maybe calling this and StopRequest from main where we check flags (start_request/stop_request)
+// TODO: Think about maybe calling this and StopRequest from main where we check flags
 void StartRequest()
 {
-    // Wait if stop request is in progress
-    while (stop_request)
+    // Wait while stop request is in progress
+    while (stop_request) // NOTE: while (TIM2->CR1 & TIM_CR1_OPM) for some reason corrupts the stopping pulse train (maybe reading it too fast causes trouble)
         ;
 
     if (g_new_settings_received) {
@@ -337,14 +344,6 @@ void StopRequest()
         return;
 
     stop_request = 1;
-
-    // Stopping routine... sequence here matters!
-    // FIRST enter One Pulse Mode, so that counter stops after next update event
-    TIM2->CR1 |= TIM_CR1_OPM;
-    // THEN clear Update interrupt flag since it is set from the previous counter updates from normal operation
-    TIM2->SR &= ~TIM_SR_UIF;
-    // THEN enable update interrupt (UIE) to allow for data sync after the sequence has finished
-    TIM2->DIER |= TIM_DIER_UIE;
 }
 
 static void Stop()
