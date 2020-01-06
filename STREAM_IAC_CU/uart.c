@@ -111,8 +111,6 @@ void UART_Init()
     UartHandle.Init.Mode         = UART_MODE_TX_RX;
     UartHandle.Init.OverSampling = UART_OVERSAMPLING_16;
 
-    HAL_UART_Init(&UartHandle);
-/*
     uint8_t id = FLASH_ReadID();
     if (id < 128)
         UART_Address = id;
@@ -126,7 +124,6 @@ void UART_Init()
     HAL_NVIC_EnableIRQ(USARTx_IRQn);
 
     USARTx->CR1 |= USART_CR1_RXNEIE;
-*/
 }
 
 int UART_Write(const uint8_t* data, int size)

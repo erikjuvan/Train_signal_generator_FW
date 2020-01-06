@@ -14,7 +14,7 @@
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{9789DF72-391B-4E1C-9DCC-A736398C21D3}</ProjectGuid>
     <BSP_ID>com.sysprogs.arm.stm32</BSP_ID>
-    <BSP_VERSION>2019.06</BSP_VERSION>
+    <BSP_VERSION>2019.12</BSP_VERSION>
     <InPlaceBSPSubdir />
     <ProjectName>STREAM_IAC_CU</ProjectName>
   </PropertyGroup>

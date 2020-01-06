@@ -18,11 +18,13 @@ ARR		- sequence period
 #include "parse.h"
 #include "uart.h"
 
-#define TIMx	TIM5
-#define TIMx_IRQHandler TIM5_IRQHandler
-#define __TIMx_CLK_ENABLE __TIM5_CLK_ENABLE
-#define TIMx_IRQn	TIM5_IRQn
+#define TIMx TIM2
+#define TIMx_IRQHandler TIM2_IRQHandler
+#define __TIMx_CLK_ENABLE __TIM2_CLK_ENABLE
+#define TIMx_IRQn TIM2_IRQn
 
+#define DMAx DMA1
+#define DMAx_CLK_ENABLE __DMA1_CLK_ENABLE
 #define DMA_Stream1 DMA1_Stream1
 #define DMA_Stream2 DMA1_Stream3
 
@@ -91,28 +93,6 @@ static void Start();
 
 static char stop_request = 0, stopping_sequence_in_progress = 0;
 
-// printf functionality
-/////////////////////////////////////
-#include <sys/stat.h>
-int _fstat(int fd, struct stat* pStat)
-{
-    pStat->st_mode = S_IFCHR;
-    return 0;
-}
-int _close(int a) { return -1; }
-int _write(int fd, char* pBuffer, int size) { return VCP_write(pBuffer, size); }
-int _isatty(int fd) { return 1; }
-int _lseek(int a, int b, int c) { return -1; }
-int _read(int fd, char* pBuffer, int size)
-{
-    for (;;) {
-        int done = VCP_read(pBuffer, size);
-        if (done)
-            return done;
-    }
-}
-/////////////////////////////////////
-
 // IRQs
 /////////////////////////////////////
 void SysTick_Handler(void)
@@ -125,13 +105,13 @@ void OTG_FS_IRQHandler(void)
     HAL_PCD_IRQHandler(&hpcd);
 }
 
-void TIMx_IRQHandler()
+__attribute__((optimize("O2"))) void TIMx_IRQHandler()
 {
-    if (TIMx->SR & TIM_SR_CC4IF) {
-        TIMx->SR = ~TIM_SR_CC4IF;
-        HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_4);
-        GPIOE->BSRR = g_pins[idx];
-        TIMx->CCR4  = g_time[idx];
+    if (TIMx->SR & TIM_SR_CC1IF) {
+        TIMx->SR = ~TIM_SR_CC1IF;
+        HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
+        PORT->BSRR = g_pins[idx];
+        TIMx->CCR1 = g_time[idx];
         idx++;
     }
 
@@ -222,7 +202,7 @@ static void GPIO_Configure()
     SetInitialGPIOState();
 
     __GPIOB_CLK_ENABLE();
-    GPIO_InitStructure.Pin = GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4;
+    GPIO_InitStructure.Pin = GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5;
 
     HAL_GPIO_Init(GPIOB, &GPIO_InitStructure);
 }
@@ -238,24 +218,25 @@ static void EXTI_Configure()
 /////////////////////////////////////
 static void DMA_Configure()
 {
-    __DMA1_CLK_ENABLE();
+    DMAx_CLK_ENABLE();
     DMA_Stream1->NDTR = g_num_of_entries;
     DMA_Stream1->M0AR = (uint32_t)g_pins;
     DMA_Stream1->PAR  = (uint32_t)&PORT->BSRR;
     DMA_Stream1->CR   = DMA_CHANNEL_6 | DMA_MBURST_SINGLE | DMA_PBURST_SINGLE | DMA_PRIORITY_VERY_HIGH | DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 |
-                       DMA_MINC_ENABLE | DMA_CIRCULAR | DMA_MEMORY_TO_PERIPH;
+                      DMA_MINC_ENABLE | DMA_CIRCULAR | DMA_MEMORY_TO_PERIPH | DMA_SxCR_HTIE | DMA_SxCR_TCIE;
 
     DMA_Stream2->NDTR = g_num_of_entries;
     DMA_Stream2->M0AR = (uint32_t)g_time;
     DMA_Stream2->PAR  = (uint32_t)&TIMx->CCR4;
     DMA_Stream2->CR   = DMA_CHANNEL_6 | DMA_MBURST_SINGLE | DMA_PBURST_SINGLE | DMA_PRIORITY_HIGH | DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 |
-                       DMA_MINC_ENABLE | DMA_CIRCULAR | DMA_MEMORY_TO_PERIPH;
+                      DMA_MINC_ENABLE | DMA_CIRCULAR | DMA_MEMORY_TO_PERIPH;
 }
 
 static void DMA_Start()
 {
     // First CLEAR LISR and HISR event flags
-    DMA1->HIFCR = ~0x0; // clear all
+    DMAx->HIFCR = ~0x0; // clear all
+    DMAx->LIFCR = ~0x0; // clear all
 
     DMA_Stream1->CR |= DMA_SxCR_EN;
     DMA_Stream2->CR |= DMA_SxCR_EN;
@@ -287,39 +268,14 @@ static void TIM_Configure()
 {
     // TIM2 has to be configured before TIM1 otherwise TIM2 causes TIM1 IRQ when executing TIM2->EGR = TIM_EGR_UG;
     __TIMx_CLK_ENABLE();
-    TIMx->PSC = (uint32_t)(SystemCoreClock / 2) / 1e6 / 4 - 1; // Prescaler value that comes to one tick being 250 ns
-    //TIMx->CR2 |= TIM_CR2_MMS_0 | TIM_CR2_MMS_1;
-    //TIMx->CR2 |= TIM_CR2_CCDS;
-    TIMx->EGR = TIM_EGR_UG;     // Generate update event (this also loads the prescaler)
-    TIMx->SR  = 0;              // Clear update event in the status register that we triggered in the line above
-    TIMx->DIER |= TIM_DIER_UIE | TIM_DIER_CC4DE | TIM_DIER_CC4IE | TIM_DIER_TDE; // Enable update interrupt
-    // Thougt I needed this, turns out I don't, I needed it because I updated ARR somewhere async while timer was running, and this prevented ARR from updating on the spot.
-    // But now with improvements to the code, parser no longer directly configures peripherals.
-    //TIM2->CR1 |= TIM_CR1_ARPE; // Auto reload register is preloaded (ref. page 711)
+    TIMx->PSC  = (uint32_t)(SystemCoreClock / 2) / 1e6 / 4 - 1; // Prescaler value that comes to one tick being 250 ns
+    TIMx->EGR  = TIM_EGR_UG;                                    // Generate update event (this also loads the prescaler)
+    TIMx->SR   = 0;                                             // Clear update event in the status register that we triggered in the line above
+    TIMx->DIER = TIM_DIER_UIE | TIM_DIER_CC1IE;
 
-    /*
-    __TIM1_CLK_ENABLE();
-    TIM1->DIER |= TIM_DIER_TDE;
-    TIM1->SMCR |= TIM_SMCR_TS_0;
-    TIM1->SMCR |= TIM_SMCR_SMS_2;
-*/
     // Enable TIM2 interrupts
     HAL_NVIC_SetPriority(TIMx_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIMx_IRQn);
-
-
-    /* Use for testing (NOT TESTED)
-	// IRQ enable TIM1
-	TIM1->DIER |= TIM_DIER_TIE;
-	HAL_NVIC_SetPriority(TIM1_TRG_COM_TIM11_IRQn, 1, 0);
-	HAL_NVIC_EnableIRQ(TIM1_TRG_COM_TIM11_IRQn);
-        
-    // IRQ handler
-	void TIM1_TRG_COM_TIM11_IRQHandler() {	
-		TIM1->SR &= ~TIM_SR_TIF;
-		asm("nop");
-	}
-	*/
 }
 
 static void TIM_Start()
@@ -355,12 +311,12 @@ void StartRequest()
 
         DMA_Update(g_num_of_entries);
 
-        // Increase by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
+        // Multiply by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
         TIM_Update_ARR(g_timer_period_us * 4);
 
-        // Update CCR1 register with the last entry in the time array which is the time at which the first GPIO change should happen
+        // Update CCR register with the last entry in the time array which is the time at which the first GPIO change should happen
         // NOTE: First entry in the settings can't be 0 (TODO: look into it if there is a way to allow starting with 0)
-        TIMx->CCR4 = g_time[g_num_of_entries - 1];
+        TIMx->CCR1 = g_time[g_num_of_entries - 1];
     }
 
     Start();
@@ -369,7 +325,7 @@ void StartRequest()
 
 static void Start()
 {
-    DMA_Start();
+    //DMA_Start();
     TIM_Start();
 }
 
@@ -425,38 +381,6 @@ void COM_UART_RX_Complete_Callback(uint8_t* buf, int size)
     Parse((char*)buf, UARTWrite);
 }
 
-int SimpleUARTWrite(const uint8_t* buf, int size)
-{
-    for (int i = 0; i < size; ++i) {
-        while (!(USARTx->ISR & USART_ISR_TXE))
-            ;
-        USARTx->TDR = buf[i];
-    }
-    while (!(USARTx->ISR & USART_ISR_TXE))
-            ;
-    USARTx->TDR = '\n';
-    
-    return size+1;
-}
-
-void SimpleUARTRead()
-{
-    static char uart_rx_buf[UART_BUFFER_SIZE] = {0};
-    static int  uart_rx_i                     = 0;
-    
-    // UART Read       
-    if (USARTx->ISR & USART_ISR_RXNE) {
-        uart_rx_buf[uart_rx_i] = USARTx->RDR;
-        if (uart_rx_buf[uart_rx_i] == 0xFF) {
-            uart_rx_buf[uart_rx_i] = 0;
-            Parse(uart_rx_buf, SimpleUARTWrite);
-            uart_rx_i = 0;
-        } else {
-            uart_rx_i++;
-        }            
-    }
-}
-
 int main()
 {
     uint8_t rxBuf[UART_BUFFER_SIZE] = {0};
@@ -469,13 +393,9 @@ int main()
         if (g_VCPInitialized) { // Make sure USB is initialized (calling, VCP_write can halt the system if the data structure hasn't been malloc-ed yet)
             usb_read = USBRead(rxBuf, sizeof(rxBuf));
             if (usb_read > 0) {
-                HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
                 Parse((char*)rxBuf, USBWrite);
-                HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
                 memset(rxBuf, 0, usb_read);
             }
         }
-
-        //SimpleUARTRead();
     }
 }
