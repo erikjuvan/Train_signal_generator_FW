@@ -77,6 +77,7 @@ static void Stop();
 static void Start();
 
 static char stop_request = 0, stopping_sequence_in_progress = 0;
+static char start_request = 0;
 
 // printf functionality
 /////////////////////////////////////
@@ -302,33 +303,9 @@ static void TIM_Update_ARR(uint32_t arr)
 }
 /////////////////////////////////////
 
-// TODO: Think about maybe calling this and StopRequest from main where we check flags
 void StartRequest()
 {
-    // Wait while stop request is in progress
-    while (stop_request) // NOTE: while (TIM2->CR1 & TIM_CR1_OPM) for some reason corrupts the stopping pulse train (maybe reading it too fast causes trouble)
-        ;
-
-    if (g_new_settings_received) {
-        g_new_settings_received = 0;
-
-        // Copy values from shadow registers
-        for (int i = 0; i < g_num_of_entries; ++i) {
-            g_pins[i] = g_pins_shadow[i];
-            g_time[i] = g_time_shadow[i];
-        }
-
-        DMA_Update(g_num_of_entries);
-
-        // Increase by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
-        TIM_Update_ARR(g_timer_period_us * 4);
-
-        // Update CCR1 register with the last entry in the time array which is the time at which the first GPIO change should happen
-        // NOTE: First entry in the settings can't be 0 (TODO: look into it if there is a way to allow starting with 0)
-        TIM2->CCR1 = g_time[g_num_of_entries - 1];
-    }
-
-    Start();
+    start_request = 1;
 }
 
 static void Start()
@@ -403,6 +380,32 @@ int main()
                 Parse((char*)rxBuf, USBWrite);
                 memset(rxBuf, 0, usb_read);
             }
+        }
+
+        if (start_request && !stop_request) {
+
+            start_request = 0;
+
+            if (g_new_settings_received) {
+                g_new_settings_received = 0;
+
+                // Copy values from shadow registers
+                for (int i = 0; i < g_num_of_entries; ++i) {
+                    g_pins[i] = g_pins_shadow[i];
+                    g_time[i] = g_time_shadow[i];
+                }
+
+                DMA_Update(g_num_of_entries);
+
+                // Increase by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
+                TIM_Update_ARR(g_timer_period_us * 4);
+
+                // Update CCR1 register with the last entry in the time array which is the time at which the first GPIO change should happen
+                // NOTE: First entry in the settings can't be 0 (TODO: look into it if there is a way to allow starting with 0)
+                TIM2->CCR1 = g_time[g_num_of_entries - 1];
+            }
+
+            Start();
         }
     }
 }
