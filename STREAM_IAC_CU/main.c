@@ -65,12 +65,19 @@ const int IsGPIOReversePin[] = {
     0  // GPIO_PIN_15
 };
 
-uint32_t g_pins[MAX_STATES] = {0};
-uint32_t g_time[MAX_STATES] = {0};
-uint32_t num_of_entries     = 0;
+int g_timer_period_us = 0;
 
-extern CommunicationMode      g_communication_mode;
-extern CommunicationInterface g_communication_interface;
+char g_new_settings_received = 0;
+
+uint32_t g_pins[MAX_STATES] = {0}, g_pins_shadow[MAX_STATES] = {0};
+uint32_t g_time[MAX_STATES] = {0}, g_time_shadow[MAX_STATES] = {0};
+uint32_t g_num_of_entries = 0;
+
+static void Stop();
+static void Start();
+
+static char stop_request = 0, stopping_sequence_in_progress = 0;
+static char start_request = 0;
 
 // printf functionality
 /////////////////////////////////////
@@ -104,6 +111,29 @@ void SysTick_Handler(void)
 void OTG_FS_IRQHandler(void)
 {
     HAL_PCD_IRQHandler(&hpcd);
+}
+void TIM2_IRQHandler()
+{
+    // If update interrupt
+    if (TIM2->SR & TIM_SR_UIF) {
+        // Clear Update interrupt pending flag (note: no need for SR &= ~TIM...)
+        TIM2->SR = ~TIM_SR_UIF;
+
+        if (stopping_sequence_in_progress) {
+            // Stopping sequence ended. It is now safe to stop everything.
+            Stop();
+            // Leave one pulse mode
+            TIM2->CR1 &= ~TIM_CR1_OPM;
+            // Clear all stopping flags
+            stopping_sequence_in_progress = 0;
+            stop_request                  = 0;
+        } else if (stop_request) {
+            // On stop request enter one pulse mode
+            TIM2->CR1 |= TIM_CR1_OPM;
+            // Flag to signal that the final stopping sequence is active (ongoing)
+            stopping_sequence_in_progress = 1;
+        }
+    }
 }
 /////////////////////////////////////
 
@@ -170,18 +200,25 @@ static void GPIO_Configure()
     SetInitialGPIOState();
 }
 
+static void EXTI_Configure()
+{
+    EXTI->IMR |= EXTI_IMR_IM0;
+    HAL_NVIC_SetPriority(EXTI0_IRQn, 3, 0);
+    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+}
+
 // DMA
 /////////////////////////////////////
 static void DMA_Configure()
 {
     __DMA2_CLK_ENABLE();
-    DMA2_Stream0->NDTR = num_of_entries;
+    DMA2_Stream0->NDTR = g_num_of_entries;
     DMA2_Stream0->M0AR = (uint32_t)g_pins;
     DMA2_Stream0->PAR  = (uint32_t)&PORT->BSRR;
     DMA2_Stream0->CR   = DMA_CHANNEL_6 | DMA_MBURST_SINGLE | DMA_PBURST_SINGLE | DMA_PRIORITY_VERY_HIGH | DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 |
                        DMA_MINC_ENABLE | DMA_CIRCULAR | DMA_MEMORY_TO_PERIPH;
 
-    DMA2_Stream4->NDTR = num_of_entries;
+    DMA2_Stream4->NDTR = g_num_of_entries;
     DMA2_Stream4->M0AR = (uint32_t)g_time;
     DMA2_Stream4->PAR  = (uint32_t)&TIM2->CCR1;
     DMA2_Stream4->CR   = DMA_CHANNEL_6 | DMA_MBURST_SINGLE | DMA_PBURST_SINGLE | DMA_PRIORITY_HIGH | DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 |
@@ -196,7 +233,6 @@ static void DMA_Start()
     while (!(DMA2_Stream0->CR & DMA_SxCR_EN) || !(DMA2_Stream4->CR & DMA_SxCR_EN))
         ; // wait for CE to be read as 1
 }
-
 static void DMA_Stop()
 {
     DMA2_Stream0->CR &= ~DMA_SxCR_EN;
@@ -205,11 +241,13 @@ static void DMA_Stop()
     while (DMA2_Stream0->CR & DMA_SxCR_EN || DMA2_Stream4->CR & DMA_SxCR_EN)
         ; // wait for CE to be read as 0
 }
-
-void DMA_Update(uint32_t n_entries)
+static void DMA_Update(uint32_t n_entries)
 {
-    DMA2_Stream0->NDTR = n_entries;
-    DMA2_Stream4->NDTR = n_entries;
+    // Only update when DMA is disabled
+    if (!(DMA2_Stream0->CR & DMA_SxCR_EN) && !(DMA2_Stream4->CR & DMA_SxCR_EN)) {
+        DMA2_Stream0->NDTR = n_entries;
+        DMA2_Stream4->NDTR = n_entries;
+    }
 }
 /////////////////////////////////////
 
@@ -219,29 +257,35 @@ static void TIM_Configure()
 {
     // TIM2 has to be configured before TIM1 otherwise TIM2 causes TIM1 IRQ when executing TIM2->EGR = TIM_EGR_UG;
     __TIM2_CLK_ENABLE();
-    TIM2->PSC  = (uint32_t)(SystemCoreClock / 2) / 1e6 / 4 - 1; // Prescaler value that comes to one tick being 250 ns
-    TIM2->ARR  = 0xFFFF;                                        // Reload timer
-    TIM2->CCR1 = 1;
+    TIM2->PSC = (uint32_t)(SystemCoreClock / 2) / 1e6 / 4 - 1; // Prescaler value that comes to one tick being 250 ns
     TIM2->CR2 |= TIM_CR2_MMS_0 | TIM_CR2_MMS_1;
-    TIM2->EGR = TIM_EGR_UG; // Reset the counter and generate update event
-    TIM2->SR  = 0;          // Clear interrupts
+    TIM2->EGR = TIM_EGR_UG;     // Generate update event (this also loads the prescaler)
+    TIM2->SR  = 0;              // Clear update event in the status register that we triggered in the line above
+    TIM2->DIER |= TIM_DIER_UIE; // Enable update interrupt
+    // Thougt I needed this, turns out I don't, I needed it because I updated ARR somewhere async while timer was running, and this prevented ARR from updating on the spot.
+    // But now with improvements to the code, parser no longer directly configures peripherals.
+    //TIM2->CR1 |= TIM_CR1_ARPE; // Auto reload register is preloaded (ref. page 711)
 
     __TIM1_CLK_ENABLE();
     TIM1->DIER |= TIM_DIER_TDE;
     TIM1->SMCR |= TIM_SMCR_TS_0;
-    TIM1->SMCR |= TIM_SMCR_SMS_2 | TIM_SMCR_SMS_1; // I don't completely understand why it has to be exactly so
+    TIM1->SMCR |= TIM_SMCR_SMS_2;
 
-    /* Use for testing 
-	// IRQ enable
+    // Enable TIM2 interrupts
+    HAL_NVIC_SetPriority(TIM2_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(TIM2_IRQn);
+
+    /* Use for testing (NOT TESTED)
+	// IRQ enable TIM1
 	TIM1->DIER |= TIM_DIER_TIE;
 	HAL_NVIC_SetPriority(TIM1_TRG_COM_TIM11_IRQn, 1, 0);
 	HAL_NVIC_EnableIRQ(TIM1_TRG_COM_TIM11_IRQn);
-	
-	// IRQ handler
+        
+    // IRQ handler
 	void TIM1_TRG_COM_TIM11_IRQHandler() {	
-		TIM1->SR = ~TIM_DIER_TIE;
+		TIM1->SR &= ~TIM_SR_TIF;
 		asm("nop");
-	}	
+	}
 	*/
 }
 
@@ -249,49 +293,42 @@ static void TIM_Start()
 {
     TIM2->CR1 |= TIM_CR1_CEN;
 }
-
 static void TIM_Stop()
 {
     TIM2->CR1 &= ~TIM_CR1_CEN;
 }
-
-void TIM_Update_ARR(uint32_t arr)
+static void TIM_Update_ARR(uint32_t arr)
 {
     TIM2->ARR = arr;
 }
-void TIM_Update_PSC(uint32_t psc)
-{
-    TIM2->PSC = psc;
-}
-void TIM_Update_REGS()
-{
-    // ORDER OF STATEMENTS MATTERS!!!
-    TIM2->CCR1 = 1;
-    TIM2->EGR  = TIM_EGR_UG;
-}
 /////////////////////////////////////
 
-void EXTI_Configure()
+void StartRequest()
 {
-    EXTI->IMR |= EXTI_IMR_IM0;
-    HAL_NVIC_SetPriority(EXTI0_IRQn, 2, 0);
-    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+    start_request = 1;
 }
 
-void Stop()
-{
-    // ORDER OF FUNCTION CALLS MATTERS!!!
-    TIM_Stop();
-    DMA_Stop();
-    TIM_Update_REGS();
-
-    SetInitialGPIOState();
-}
-
-void Start()
+static void Start()
 {
     DMA_Start();
     TIM_Start();
+}
+
+void StopRequest()
+{
+    // If timer is not running just return since it is already stopped
+    if (!(TIM2->CR1 & TIM_CR1_CEN))
+        return;
+
+    stop_request = 1;
+}
+
+static void Stop()
+{
+    TIM_Stop();
+    DMA_Stop();
+
+    SetInitialGPIOState();
 }
 
 static void USB_Init()
@@ -316,44 +353,59 @@ static void Init()
     GPIO_Configure();
     DMA_Configure();
     TIM_Configure();
-    UART_Init();
     EXTI_Configure();
+
+    UART_Init();
+
+    USB_Init();
 }
 
 void COM_UART_RX_Complete_Callback(uint8_t* buf, int size)
 {
-    if (g_communication_mode == ASCII) { // ASCII mode
-        Parse((char*)buf);
-    }
+    Parse((char*)buf, UARTWrite);
 }
 
 int main()
 {
     uint8_t rxBuf[UART_BUFFER_SIZE] = {0};
-    int     read                    = 0;
+    int     usb_read                = 0;
 
     Init();
 
-    USB_Init();
-
     while (1) {
 
-        read = Read(rxBuf, sizeof(rxBuf));
-
-        if (read > 0 && g_communication_mode == ASCII) {
-            Parse((char*)rxBuf);
-            memset(rxBuf, 0, read);
+        if (g_VCPInitialized) { // Make sure USB is initialized (calling, VCP_write can halt the system if the data structure hasn't been malloc-ed yet)
+            usb_read = USBRead(rxBuf, sizeof(rxBuf));
+            if (usb_read > 0) {
+                Parse((char*)rxBuf, USBWrite);
+                memset(rxBuf, 0, usb_read);
+            }
         }
 
-        // Developement code (should not be used after devel phase)
-        if (g_communication_interface == UART) {
-            char buf[10];
-            if (VCP_read(buf, 10) > 0) {
-                if (strncmp(buf, "USBY", 4) == 0) {
-                    g_communication_interface = USB;
-                    g_communication_mode      = ASCII;
+        if (start_request && !stop_request) {
+
+            start_request = 0;
+
+            if (g_new_settings_received) {
+                g_new_settings_received = 0;
+
+                // Copy values from shadow registers
+                for (int i = 0; i < g_num_of_entries; ++i) {
+                    g_pins[i] = g_pins_shadow[i];
+                    g_time[i] = g_time_shadow[i];
                 }
+
+                DMA_Update(g_num_of_entries);
+
+                // Increase by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
+                TIM_Update_ARR(g_timer_period_us * 4);
+
+                // Update CCR1 register with the last entry in the time array which is the time at which the first GPIO change should happen
+                // NOTE: First entry in the settings can't be 0 (TODO: look into it if there is a way to allow starting with 0)
+                TIM2->CCR1 = g_time[g_num_of_entries - 1];
             }
+
+            Start();
         }
     }
 }
