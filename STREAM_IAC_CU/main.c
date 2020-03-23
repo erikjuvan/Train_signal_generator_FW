@@ -257,7 +257,22 @@ static void TIM_Configure()
 {
     // TIM2 has to be configured before TIM1 otherwise TIM2 causes TIM1 IRQ when executing TIM2->EGR = TIM_EGR_UG;
     __TIM2_CLK_ENABLE();
-    TIM2->PSC = (uint32_t)(SystemCoreClock / 2) / 1e6 / 4 - 1; // Prescaler value that comes to one tick being 250 ns
+
+#define TIMx_CLK_SOURCE_APB1             // TIM2 is on APB1
+    const uint32_t TIM_COUNT_FREQ = 1e6; // Freq = 1 MHz, T = 1 us.
+
+    // NOTE: Timer clocks can be tricky since they can be different from the bus frequency, so when in doubt check the datasheet.
+#if defined(TIMx_CLK_SOURCE_APB1)
+    uint32_t timer_freq = HAL_RCC_GetPCLK1Freq();
+    if (RCC->CFGR & RCC_CFGR_PPRE1_2) // if MSB is not zero (clk divison by more than 1)
+        timer_freq *= 2;
+#elif defined(TIMx_CLK_SOURCE_APB2)
+    uint32_t timer_freq = HAL_RCC_GetPCLK2Freq();
+    if (RCC->CFGR & RCC_CFGR_PPRE2_2) // if MSB is not zero (clk divison by more than 1)
+        timer_freq *= 2;
+#endif
+
+    TIM2->PSC = (uint32_t)(timer_freq / TIM_COUNT_FREQ) - 1; // Set prescaler to count with 1/TIM_COUNT_FREQ period
     TIM2->CR2 |= TIM_CR2_MMS_0 | TIM_CR2_MMS_1;
     TIM2->EGR = TIM_EGR_UG;     // Generate update event (this also loads the prescaler)
     TIM2->SR  = 0;              // Clear update event in the status register that we triggered in the line above
@@ -397,8 +412,7 @@ int main()
 
                 DMA_Update(g_num_of_entries);
 
-                // Increase by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
-                TIM_Update_ARR(g_timer_period_us * 4);
+                TIM_Update_ARR(g_timer_period_us);
 
                 // Update CCR1 register with the last entry in the time array which is the time at which the first GPIO change should happen
                 // NOTE: First entry in the settings can't be 0 (TODO: look into it if there is a way to allow starting with 0)
