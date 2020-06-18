@@ -3,7 +3,7 @@
 // STM HAL Library
 #include <stm32f7xx_hal.h>
 
-#define SWVER "IAC_CU V1.0.0.0"
+#define SWVER "IAC_CU V1.0.0.1"
 #define HWVER "N/A"
 #define COMPATIBILITYMODE "N/A"
 
