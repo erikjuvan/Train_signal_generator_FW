@@ -1,12 +1,27 @@
-/*
-DMA2 is chosen because only only DMA2 streams are able to perform memory-to-memory transfers
-TIM1 is the trigger for DMA2
-TIM1 is in slave mode and is triggerd by TIM2. Reason for using TIM2 is that TIM1 is 16bit and TIM2 is 32bit
-TIM2 is where we change all the timing settings (ARR, PSC, CCR1), TIM1 stays at initial values.
-PSC		- timing resolution
-CCR1	- next DMA trigger g_time
-ARR		- sequence period
-*/
+/// @file main.c
+/// <summary>
+/// Main file.
+/// </summary>
+///
+/// <description>
+/// DMA2 is chosen because only only DMA2 streams are able to perform memory-to-memory transfers
+/// TIM1 is the trigger for DMA2
+/// TIM1 is in slave mode and is triggerd by TIM2. Reason for using TIM2 is that TIM1 is 16bit and TIM2 is 32bit
+/// TIM2 is where we change all the timing settings (ARR, PSC, CCR1), TIM1 stays at initial values.
+/// PSC		- timing resolution
+/// CCR1	- next DMA trigger g_time
+/// ARR		- sequence period
+/// </description>
+///
+/// Supervision: /
+///
+/// Company: Sensum d.o.o.
+///
+/// @authors Erik Juvan
+///
+/// @version /
+/////-----------------------------------------------------------
+// Company: Sensum d.o.o.
 
 #include "usbd_cdc_if.h"
 #include <usbd_cdc.h>
@@ -79,39 +94,26 @@ static void Start();
 static char stop_request = 0, stopping_sequence_in_progress = 0;
 static char start_request = 0;
 
-// printf functionality
-/////////////////////////////////////
-#include <sys/stat.h>
-int _fstat(int fd, struct stat* pStat)
-{
-    pStat->st_mode = S_IFCHR;
-    return 0;
-}
-int _close(int a) { return -1; }
-int _write(int fd, char* pBuffer, int size) { return VCP_write(pBuffer, size); }
-int _isatty(int fd) { return 1; }
-int _lseek(int a, int b, int c) { return -1; }
-int _read(int fd, char* pBuffer, int size)
-{
-    for (;;) {
-        int done = VCP_read(pBuffer, size);
-        if (done)
-            return done;
-    }
-}
-/////////////////////////////////////
-
-// IRQs
-/////////////////////////////////////
+//---------------------------------------------------------------------
+/// <summary> System tick interrupt handler. </summary>
+//---------------------------------------------------------------------
 void SysTick_Handler(void)
 {
     HAL_IncTick();
     HAL_SYSTICK_IRQHandler();
 }
+
+//---------------------------------------------------------------------
+/// <summary> Full speed USB interrupt handler. </summary>
+//---------------------------------------------------------------------
 void OTG_FS_IRQHandler(void)
 {
     HAL_PCD_IRQHandler(&hpcd);
 }
+
+//---------------------------------------------------------------------
+/// <summary> Timer interrupt handler. </summary>
+//---------------------------------------------------------------------
 void TIM2_IRQHandler()
 {
     // If update interrupt
@@ -135,8 +137,10 @@ void TIM2_IRQHandler()
         }
     }
 }
-/////////////////////////////////////
 
+//---------------------------------------------------------------------
+/// <summary> System clock configuration. </summary>
+//---------------------------------------------------------------------
 static void SystemClock_Config(void)
 {
 
@@ -177,6 +181,9 @@ static void SystemClock_Config(void)
     }
 }
 
+//---------------------------------------------------------------------
+/// <summary> Set GPIO pins to their default state as defined by IsGPIOReversePin array. </summary>
+//---------------------------------------------------------------------
 static void SetInitialGPIOState()
 {
     // Set intial state
@@ -185,6 +192,9 @@ static void SetInitialGPIOState()
     }
 }
 
+//---------------------------------------------------------------------
+/// <summary> GPIO configuration. </summary>
+//---------------------------------------------------------------------
 static void GPIO_Configure()
 {
     PORT_CLK_ENABLE();
@@ -200,6 +210,9 @@ static void GPIO_Configure()
     SetInitialGPIOState();
 }
 
+//---------------------------------------------------------------------
+/// <summary> External interrupt configuration. </summary>
+//---------------------------------------------------------------------
 static void EXTI_Configure()
 {
     EXTI->IMR |= EXTI_IMR_IM0;
@@ -207,8 +220,9 @@ static void EXTI_Configure()
     HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 }
 
-// DMA
-/////////////////////////////////////
+//---------------------------------------------------------------------
+/// <summary> DMA (Direct Memory Access) configuration. </summary>
+//---------------------------------------------------------------------
 static void DMA_Configure()
 {
     __DMA2_CLK_ENABLE();
@@ -225,6 +239,9 @@ static void DMA_Configure()
                        DMA_MINC_ENABLE | DMA_CIRCULAR | DMA_MEMORY_TO_PERIPH;
 }
 
+//---------------------------------------------------------------------
+/// <summary> Start DMA. </summary>
+//---------------------------------------------------------------------
 static void DMA_Start()
 {
     DMA2_Stream0->CR |= DMA_SxCR_EN;
@@ -233,6 +250,10 @@ static void DMA_Start()
     while (!(DMA2_Stream0->CR & DMA_SxCR_EN) || !(DMA2_Stream4->CR & DMA_SxCR_EN))
         ; // wait for CE to be read as 1
 }
+
+//---------------------------------------------------------------------
+/// <summary> Stop DMA. </summary>
+//---------------------------------------------------------------------
 static void DMA_Stop()
 {
     DMA2_Stream0->CR &= ~DMA_SxCR_EN;
@@ -241,6 +262,13 @@ static void DMA_Stop()
     while (DMA2_Stream0->CR & DMA_SxCR_EN || DMA2_Stream4->CR & DMA_SxCR_EN)
         ; // wait for CE to be read as 0
 }
+
+//---------------------------------------------------------------------
+/// <summary> Update DMA Streams </summary>
+///
+/// <param name="n_entries"> Number of entries in the array.
+/// In other words number of GPIO state changes. </param>
+//---------------------------------------------------------------------
 static void DMA_Update(uint32_t n_entries)
 {
     // Only update when DMA is disabled
@@ -249,10 +277,10 @@ static void DMA_Update(uint32_t n_entries)
         DMA2_Stream4->NDTR = n_entries;
     }
 }
-/////////////////////////////////////
 
-// TIM
-/////////////////////////////////////
+//---------------------------------------------------------------------
+/// <summary> Timer configuration. </summary>
+//---------------------------------------------------------------------
 static void TIM_Configure()
 {
     // TIM2 has to be configured before TIM1 otherwise TIM2 causes TIM1 IRQ when executing TIM2->EGR = TIM_EGR_UG;
@@ -304,31 +332,50 @@ static void TIM_Configure()
 	*/
 }
 
+//---------------------------------------------------------------------
+/// <summary> Start timer. </summary>
+//---------------------------------------------------------------------
 static void TIM_Start()
 {
     TIM2->CR1 |= TIM_CR1_CEN;
 }
+
+//---------------------------------------------------------------------
+/// <summary> Stop timer. </summary>
+//---------------------------------------------------------------------
 static void TIM_Stop()
 {
     TIM2->CR1 &= ~TIM_CR1_CEN;
 }
+
+//---------------------------------------------------------------------
+/// <summary> Update Timer ARR (Auto Reload Register). </summary>
+//---------------------------------------------------------------------
 static void TIM_Update_ARR(uint32_t arr)
 {
     TIM2->ARR = arr;
 }
-/////////////////////////////////////
 
+//---------------------------------------------------------------------
+/// <summary> Request to start generating GPIO pulse train. </summary>
+//---------------------------------------------------------------------
 void StartRequest()
 {
     start_request = 1;
 }
 
+//---------------------------------------------------------------------
+/// <summary> Start generating GPIO pulse train. </summary>
+//---------------------------------------------------------------------
 static void Start()
 {
     DMA_Start();
     TIM_Start();
 }
 
+//---------------------------------------------------------------------
+/// <summary> Request to stop generating GPIO pulse train. </summary>
+//---------------------------------------------------------------------
 void StopRequest()
 {
     // If timer is not running just return since it is already stopped
@@ -338,6 +385,9 @@ void StopRequest()
     stop_request = 1;
 }
 
+//---------------------------------------------------------------------
+/// <summary> Stop generating GPIO pulse train. </summary>
+//---------------------------------------------------------------------
 static void Stop()
 {
     TIM_Stop();
@@ -346,6 +396,9 @@ static void Stop()
     SetInitialGPIOState();
 }
 
+//---------------------------------------------------------------------
+/// <summary> Initialize USB. </summary>
+//---------------------------------------------------------------------
 static void USB_Init()
 {
     USBD_Init(&USBD_Device, &VCP_Desc, 0);
@@ -355,12 +408,18 @@ static void USB_Init()
     USBD_Start(&USBD_Device);
 }
 
+//---------------------------------------------------------------------
+/// <summary> Deinitialize USB. </summary>
+//---------------------------------------------------------------------
 static void USB_Deinit()
 {
     USBD_Stop(&USBD_Device);
     USBD_DeInit(&USBD_Device);
 }
 
+//---------------------------------------------------------------------
+/// <summary> Main init. </summary>
+//---------------------------------------------------------------------
 static void Init()
 {
     HAL_Init();
@@ -375,11 +434,17 @@ static void Init()
     USB_Init();
 }
 
+//---------------------------------------------------------------------
+/// <summary> See communication.c for documentation. </summary>
+//---------------------------------------------------------------------
 void COM_UART_RX_Complete_Callback(uint8_t* buf, int size)
 {
     Parse((char*)buf, UARTWrite);
 }
 
+//---------------------------------------------------------------------
+/// <summary> Main function. </summary>
+//---------------------------------------------------------------------
 int main()
 {
     uint8_t rxBuf[UART_BUFFER_SIZE] = {0};
