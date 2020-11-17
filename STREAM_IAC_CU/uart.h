@@ -4,7 +4,7 @@
 
 #define UART_BUFFER_SIZE 512
 
-#define NUCLEO_USART2
+//#define NUCLEO_USART2
 //#define NUCLEO_USART6
 
 #if !defined(NUCLEO_USART2) && !defined(NUCLEO_USART6)
@@ -112,7 +112,6 @@
     HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphClkInit)
 
 #endif
-
 
 void UART_Init();
 int  UART_Write(const uint8_t* data, int size);

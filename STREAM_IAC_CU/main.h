@@ -3,9 +3,9 @@
 // STM HAL Library
 #include <stm32f7xx_hal.h>
 
-#define SWVER "RK_ILU_FWMAIN V1.0.0"
-#define HWVER "RK_ILU_SCCUPCB V1.0.0"
-#define COMPATIBILITYMODE "CM00"
+#define SWVER "STREAM_IAC_CU V1.1.0.0-devel"
+#define HWVER "N/A"
+#define COMPATIBILITYMODE "N/A"
 
 #define WritePins(port, on, off) port->BSRR = ((uint32_t)on) | (((uint32_t)off) << 16U)
 #define SetPins(port, x) port->BSRR = (uint32_t)x

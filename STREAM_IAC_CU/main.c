@@ -79,19 +79,17 @@ int g_timer_period_us = 0;
 
 char g_new_settings_received = 0;
 
-static uint32_t g_pins[MAX_STATES] = {0};
-static uint32_t g_time[MAX_STATES] = {0};
+uint32_t g_pins[MAX_STATES] = {0}, g_pins_shadow[MAX_STATES] = {0};
+uint32_t g_time[MAX_STATES] = {0}, g_time_shadow[MAX_STATES] = {0};
+uint32_t g_num_of_entries = 0;
 
-uint32_t g_pins_shadow[MAX_STATES] = {0};
-uint32_t g_time_shadow[MAX_STATES] = {0};
-uint32_t g_num_of_entries          = 0;
-
-int idx = 0;
+static int array_idx = 0;
 
 static void Stop();
 static void Start();
 
 static char stop_request = 0, stopping_sequence_in_progress = 0;
+static char start_request = 0;
 
 // IRQs
 /////////////////////////////////////
@@ -108,18 +106,17 @@ void OTG_FS_IRQHandler(void)
 __attribute__((optimize("O2"))) void TIMx_IRQHandler()
 {
     if (TIMx->SR & TIM_SR_CC1IF) {
-        TIMx->SR = ~TIM_SR_CC1IF;
-        HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
-        PORT->BSRR = g_pins[idx];
-        TIMx->CCR1 = g_time[idx];
-        idx++;
+        PORT->BSRR = g_pins[array_idx]; // first quickly set GPIO pins
+        TIMx->CCR1 = g_time[array_idx]; // then CCR register
+        TIMx->SR   = ~TIM_SR_CC1IF;     // then clear IRQ flag
+        array_idx++;
     }
 
     // If update interrupt
     if (TIMx->SR & TIM_SR_UIF) {
         // Clear Update interrupt pending flag (note: no need for SR &= ~TIM...)
-        TIMx->SR = ~TIM_SR_UIF;
-        idx      = 0;
+        TIMx->SR  = ~TIM_SR_UIF;
+        array_idx = 0;
         if (stopping_sequence_in_progress) {
             // Stopping sequence ended. It is now safe to stop everything.
             Stop();
@@ -128,7 +125,6 @@ __attribute__((optimize("O2"))) void TIMx_IRQHandler()
             // Clear all stopping flags
             stopping_sequence_in_progress = 0;
             stop_request                  = 0;
-            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
         } else if (stop_request) {
             // On stop request enter one pulse mode
             TIMx->CR1 |= TIM_CR1_OPM;
@@ -200,11 +196,6 @@ static void GPIO_Configure()
     HAL_GPIO_Init(PORT, &GPIO_InitStructure);
 
     SetInitialGPIOState();
-
-    __GPIOB_CLK_ENABLE();
-    GPIO_InitStructure.Pin = GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5;
-
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStructure);
 }
 
 static void EXTI_Configure()
@@ -266,14 +257,28 @@ static void DMA_Update(uint32_t n_entries)
 /////////////////////////////////////
 static void TIM_Configure()
 {
-    // TIM2 has to be configured before TIM1 otherwise TIM2 causes TIM1 IRQ when executing TIM2->EGR = TIM_EGR_UG;
     __TIMx_CLK_ENABLE();
-    TIMx->PSC  = (uint32_t)(SystemCoreClock / 2) / 1e6 / 4 - 1; // Prescaler value that comes to one tick being 250 ns
-    TIMx->EGR  = TIM_EGR_UG;                                    // Generate update event (this also loads the prescaler)
-    TIMx->SR   = 0;                                             // Clear update event in the status register that we triggered in the line above
+
+#define TIMx_CLK_SOURCE_APB1             // TIMx(2) is on APB1
+    const uint32_t TIM_COUNT_FREQ = 1e6; // Freq = 1 MHz, T = 1 us.
+
+    // NOTE: Timer clocks can be tricky since they can be different from the bus frequency, so when in doubt check the datasheet.
+#if defined(TIMx_CLK_SOURCE_APB1)
+    uint32_t timer_freq = HAL_RCC_GetPCLK1Freq();
+    if (RCC->CFGR & RCC_CFGR_PPRE1_2) // if MSB is not zero (clk divison by more than 1)
+        timer_freq *= 2;
+#elif defined(TIMx_CLK_SOURCE_APB2)
+    uint32_t timer_freq = HAL_RCC_GetPCLK2Freq();
+    if (RCC->CFGR & RCC_CFGR_PPRE2_2) // if MSB is not zero (clk divison by more than 1)
+        timer_freq *= 2;
+#endif
+
+    TIM2->PSC  = (uint32_t)(timer_freq / TIM_COUNT_FREQ) - 1; // Set prescaler to count with 1/TIM_COUNT_FREQ period
+    TIMx->EGR  = TIM_EGR_UG;                                  // Generate update event (this also loads the prescaler)
+    TIMx->SR   = 0;                                           // Clear update event in the status register that we triggered in the line above
     TIMx->DIER = TIM_DIER_UIE | TIM_DIER_CC1IE;
 
-    // Enable TIM2 interrupts
+    // Enable TIM interrupts
     HAL_NVIC_SetPriority(TIMx_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIMx_IRQn);
 }
@@ -292,35 +297,9 @@ static void TIM_Update_ARR(uint32_t arr)
 }
 /////////////////////////////////////
 
-// TODO: Think about maybe calling this and StopRequest from main where we check flags
 void StartRequest()
 {
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_SET);
-    // Wait while stop request is in progress
-    while (stop_request) // NOTE: while (TIMx->CR1 & TIM_CR1_OPM) for some reason corrupts the stopping pulse train (maybe reading it too fast causes trouble)
-        ;
-
-    if (g_new_settings_received) {
-        g_new_settings_received = 0;
-
-        // Copy values from shadow registers
-        for (int i = 0; i < g_num_of_entries; ++i) {
-            g_pins[i] = g_pins_shadow[i];
-            g_time[i] = g_time_shadow[i];
-        }
-
-        DMA_Update(g_num_of_entries);
-
-        // Multiply by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
-        TIM_Update_ARR(g_timer_period_us * 4);
-
-        // Update CCR register with the last entry in the time array which is the time at which the first GPIO change should happen
-        // NOTE: First entry in the settings can't be 0 (TODO: look into it if there is a way to allow starting with 0)
-        TIMx->CCR1 = g_time[g_num_of_entries - 1];
-    }
-
-    Start();
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_RESET);
+    start_request = 1;
 }
 
 static void Start()
@@ -335,7 +314,6 @@ void StopRequest()
     if (!(TIMx->CR1 & TIM_CR1_CEN))
         return;
 
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
     stop_request = 1;
 }
 
@@ -396,6 +374,31 @@ int main()
                 Parse((char*)rxBuf, USBWrite);
                 memset(rxBuf, 0, usb_read);
             }
+        }
+
+        if (start_request && !stop_request) {
+
+            start_request = 0;
+
+            if (g_new_settings_received) {
+                g_new_settings_received = 0;
+
+                // Copy values from shadow registers
+                for (int i = 0; i < g_num_of_entries; ++i) {
+                    g_pins[i] = g_pins_shadow[i];
+                    g_time[i] = g_time_shadow[i];
+                }
+
+                DMA_Update(g_num_of_entries);
+
+                TIM_Update_ARR(g_timer_period_us);
+
+                // Update CCR1 register with the last entry in the time array which is the time at which the first GPIO change should happen
+                // NOTE: First entry in the settings can't be 0 (TODO: look into it if there is a way to allow starting with 0)
+                TIM2->CCR1 = g_time[g_num_of_entries - 1];
+            }
+
+            Start();
         }
     }
 }

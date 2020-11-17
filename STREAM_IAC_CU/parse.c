@@ -26,8 +26,8 @@ extern uint8_t UART_Address;
 
 static const char Delims[] = "\n\r\t, ";
 
-static int newSettings     = 0;
-static int needsCorrecting = 0;
+static int newSettings     = 1; // when first configuring flag should be active
+static int needsCorrecting = 1; // when first configuring flag should be active
 
 extern int g_timer_period_us;
 
@@ -48,11 +48,6 @@ void CorrectValues()
     }
     g_time_shadow[g_num_of_entries - 1] = tmpTime;
     needsCorrecting                     = 0;
-
-    // Increase the g_time array by magic number 4 which is tied to the magic number in the PSC to get exactly 1us resolution
-    for (int i = 0; i < g_num_of_entries; i++) {
-        g_time_shadow[i] *= 4;
-    }
 }
 
 static int StrToInts(char* str, int* ints, int maxArrSize)
@@ -284,9 +279,9 @@ static int WriteChannelSettings(char* buf, int max_size, int ch)
         if (g_pins_shadow[i] & GPIOPinArray[ch] || (g_pins_shadow[i] & GPIOPinArray[ch] << 16)) // take into account setting and reseting
         {
             if (i == 0) // fetch last time entry
-                written += snprintf(&buf[strlen(buf)], max_size - strlen(buf), "%lu,", g_time_shadow[g_num_of_entries - 1] / 4);
+                written += snprintf(&buf[strlen(buf)], max_size - strlen(buf), "%lu,", g_time_shadow[g_num_of_entries - 1]);
             else
-                written += snprintf(&buf[strlen(buf)], max_size - strlen(buf), "%lu,", g_time_shadow[i - 1] / 4);
+                written += snprintf(&buf[strlen(buf)], max_size - strlen(buf), "%lu,", g_time_shadow[i - 1]);
         }
     }
     if (strlen(buf) > 0)
