@@ -116,7 +116,7 @@ int USBRead(uint8_t* buffer, int max_size)
     if ((read = VCP_read(&buffer[total_read], max_size - total_read)) > 0) {
         last_read_tick = HAL_GetTick();
         total_read += read;
-    } else if (total_read > 0 && ((HAL_GetTick() - last_read_tick) > 3)) { // at least 3 ms ("terminal.exe" sometimes takes > 2 ms when sending files, so this is to be on the safe side, otherwise try to use some other/better program, I use a hand written one)
+    } else if (total_read > 0 && ((HAL_GetTick() - last_read_tick) > 30)) { // at least 30 ms!!! JUST SPENT 2 hours!!! chasing a bug which turned out to be that terminal takes even longer than 3ms to send data, so increased it to 30 ms, hopes this never happenes again! Use a different terminal!!!
         buffer[total_read] = 0;
         int tmp            = total_read;
         total_read         = 0;

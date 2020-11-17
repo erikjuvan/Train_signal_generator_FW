@@ -8,6 +8,8 @@
 *.sln.docstates
 [Vv]isualGdb/
 
+.visualgdb/
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

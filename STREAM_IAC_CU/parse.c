@@ -41,8 +41,8 @@ extern uint8_t UART_Address;
 
 static const char Delims[] = "\n\r\t, ";
 
-static int newSettings     = 0;
-static int needsCorrecting = 0;
+static int newSettings     = 1; // when first configuring flag should be active
+static int needsCorrecting = 1; // when first configuring flag should be active
 
 extern int g_timer_period_us;
 
