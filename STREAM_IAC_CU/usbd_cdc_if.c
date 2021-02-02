@@ -67,13 +67,15 @@ static int8_t STREAM_IAC_CU_Init(void);
 static int8_t STREAM_IAC_CU_DeInit(void);
 static int8_t STREAM_IAC_CU_Control(uint8_t cmd, uint8_t* pbuf, uint16_t length);
 static int8_t STREAM_IAC_CU_Receive(uint8_t* pbuf, uint32_t* Len);
+static int8_t STREAM_IAC_CU_TransmitCplt(uint8_t* pbuf, uint32_t* Len, uint8_t epnum);
 
 USBD_CDC_ItfTypeDef USBD_CDC_STREAM_IAC_CU_fops =
     {
         STREAM_IAC_CU_Init,
         STREAM_IAC_CU_DeInit,
         STREAM_IAC_CU_Control,
-        STREAM_IAC_CU_Receive};
+        STREAM_IAC_CU_Receive,
+        STREAM_IAC_CU_TransmitCplt};
 
 USBD_CDC_LineCodingTypeDef linecoding =
     {
@@ -212,6 +214,15 @@ static int8_t STREAM_IAC_CU_Receive(uint8_t* Buf, uint32_t* Len)
     s_RxBuffer.Position = 0;
     s_RxBuffer.Size     = *Len;
     s_RxBuffer.ReadDone = 1;
+    return (0);
+}
+
+static int8_t STREAM_IAC_CU_TransmitCplt(uint8_t* Buf, uint32_t* Len, uint8_t epnum)
+{
+    UNUSED(Buf);
+    UNUSED(Len);
+    UNUSED(epnum);
+
     return (0);
 }
 
