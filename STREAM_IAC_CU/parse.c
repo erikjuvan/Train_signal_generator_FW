@@ -1,3 +1,18 @@
+/// @file parse.c
+/// <summary>
+/// Parsing library and commands implementation.
+/// </summary>
+///
+/// Supervision: /
+///
+/// Company: Sensum d.o.o.
+///
+/// @authors Erik Juvan
+///
+/// @version /
+/////-----------------------------------------------------------
+// Company: Sensum d.o.o.
+
 // C Standard Library
 #include <stdint.h>
 #include <stdio.h>
@@ -31,6 +46,9 @@ static int needsCorrecting = 1; // when first configuring flag should be active
 
 extern int g_timer_period_us;
 
+//---------------------------------------------------------------------
+/// <summary> Clear all settings (clear arrays). </summary>
+//---------------------------------------------------------------------
 static void ClearSettings()
 {
     for (int i = 0; i < MAX_STATES; i++) {
@@ -39,7 +57,11 @@ static void ClearSettings()
     g_num_of_entries = 0;
 }
 
-void CorrectValues()
+//---------------------------------------------------------------------
+/// <summary> Upon receiving all settings, shift the time array
+/// to correct for the inherent offset in the functionality. </summary>
+//---------------------------------------------------------------------
+void ShiftTimeSettings()
 {
     // Shift values in the g_time array to correct for the inherent offset in the functionality
     int tmpTime = g_time_shadow[0];
@@ -50,6 +72,15 @@ void CorrectValues()
     needsCorrecting                     = 0;
 }
 
+//---------------------------------------------------------------------
+/// <summary> Convert all numbers in text (char array) to array of integers. </summary>
+///
+/// <param name="str"> String of text to parse. </param>
+/// <param name="ints"> Array of integers. </param>
+/// <param name="maxArrSize"> Size of array. </param>
+///
+/// <returns> Number of converted ints. </returns>
+//---------------------------------------------------------------------
 static int StrToInts(char* str, int* ints, int maxArrSize)
 {
     int  element    = 0;
@@ -82,33 +113,54 @@ static int StrToInts(char* str, int* ints, int maxArrSize)
     return element;
 }
 
-static void Update(uint32_t ch_num, int ch_idx, int time_val, int time_idx)
+//---------------------------------------------------------------------
+/// <summary> Update pins array from raw inputs. </summary>
+///
+/// <param name="ch_num"> Channel number (0-15). </param>
+/// <param name="seq_idx"> Sequence index, used to determine on/off state of pin. </param>
+/// <param name="array_idx"> Index in the array where to update value. </param>
+//---------------------------------------------------------------------
+static void UpdatePinsArray(uint32_t ch_num, int seq_idx, int array_idx)
 {
     uint32_t gpio_pin = GPIOPinArray[ch_num];
 
     if (!IsGPIOReversePin[ch_num]) {
         // Pin is NOT reversed
-        g_pins_shadow[time_idx] |= ch_idx % 2 == 0 ? gpio_pin : gpio_pin << 16;
+        g_pins_shadow[array_idx] |= seq_idx % 2 == 0 ? gpio_pin : gpio_pin << 16;
     } else {
         // Pin is reversed
-        g_pins_shadow[time_idx] |= ch_idx % 2 == 1 ? gpio_pin : gpio_pin << 16;
+        g_pins_shadow[array_idx] |= seq_idx % 2 == 1 ? gpio_pin : gpio_pin << 16;
     }
 }
 
-static void Insert(uint32_t ch_num, int ch_idx, int time_val, int time_idx)
+//---------------------------------------------------------------------
+/// <summary> Insert new entry into time and pins array. </summary>
+///
+/// <param name="ch_num"> Channel number (0-15). </param>
+/// <param name="seq_idx"> Sequence index, used to determine on/off state of pin. </param>
+/// <param name="time_val"> Timer value to write to time array. </param>
+/// <param name="array_idx"> Index in the arrays where to update values. </param>
+//---------------------------------------------------------------------
+static void Insert(uint32_t ch_num, int seq_idx, int time_val, int array_idx)
 {
     if (g_num_of_entries >= MAX_STATES)
         return;
-    for (int i = g_num_of_entries; i > time_idx; i--) {
+    for (int i = g_num_of_entries; i > array_idx; i--) {
         g_time_shadow[i] = g_time_shadow[i - 1];
         g_pins_shadow[i] = g_pins_shadow[i - 1];
     }
-    g_time_shadow[time_idx] = time_val;
-    g_pins_shadow[time_idx] = 0;
-    Update(ch_num, ch_idx, time_val, time_idx);
+    g_time_shadow[array_idx] = time_val;
+    g_pins_shadow[array_idx] = 0;
+    UpdatePinsArray(ch_num, seq_idx, array_idx);
     g_num_of_entries++;
 }
 
+//---------------------------------------------------------------------
+/// <summary> Reset uC. </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_RSET(char* str, write_func Write)
 {
     // Echo
@@ -120,6 +172,12 @@ static void Function_RSET(char* str, write_func Write)
     NVIC_SystemReset();
 }
 
+//---------------------------------------------------------------------
+/// <summary> Version (hardcoded) GET. </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_VERG(char* str, write_func Write)
 {
     char buf[100] = {0};
@@ -127,6 +185,12 @@ static void Function_VERG(char* str, write_func Write)
     Write((uint8_t*)buf, strlen(buf));
 }
 
+//---------------------------------------------------------------------
+/// <summary> uC UART ID SET. </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_ID_S(char* str, write_func Write)
 {
     str = strtok(NULL, Delims);
@@ -143,6 +207,12 @@ static void Function_ID_S(char* str, write_func Write)
     Write((uint8_t*)buf, strlen(buf));
 }
 
+//---------------------------------------------------------------------
+/// <summary> uC UART ID GET. </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_ID_G(char* str, write_func Write)
 {
     char buf[10] = {0};
@@ -150,15 +220,27 @@ static void Function_ID_G(char* str, write_func Write)
     Write((uint8_t*)buf, strlen(buf));
 }
 
+//---------------------------------------------------------------------
+/// <summary> Simple PING, to check if uC is alive. </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_PING(char* str, write_func Write)
 {
     Write((uint8_t*)"PING", 4);
 }
 
+//---------------------------------------------------------------------
+/// <summary> Start train pulse. </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_STRT(char* str, write_func Write)
 {
     if (needsCorrecting) {
-        CorrectValues();
+        ShiftTimeSettings();
         g_new_settings_received = 1;
     }
     newSettings = 1;
@@ -168,6 +250,12 @@ static void Function_STRT(char* str, write_func Write)
     Write((uint8_t*)"STRT", 4);
 }
 
+//---------------------------------------------------------------------
+/// <summary> Stop train pulse. </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_STOP(char* str, write_func Write)
 {
     newSettings = 1;
@@ -177,6 +265,12 @@ static void Function_STOP(char* str, write_func Write)
     Write((uint8_t*)"STOP", 4);
 }
 
+//---------------------------------------------------------------------
+/// <summary> Train pulse period SET. </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_PRDS(char* str, write_func Write)
 {
     str = strtok(NULL, Delims); // param - PERIOD [us]
@@ -195,12 +289,17 @@ static void Function_PRDS(char* str, write_func Write)
     Write((uint8_t*)buf, strlen(buf));
 }
 
-// Set Channel. Example CHLS,0,140,240,32460,32560 // first param: channel number - coresponds to PIN numbers (0 - PIN0, 1 - PIN1, ...)
-// second param: on g_time, third param: off g_time ... toggle so on
+//---------------------------------------------------------------------
+/// <summary> Channel SET.
+/// Example CHLS,0,140,240,32460,32560 // first param: channel number -
+/// - coresponds to PIN numbers (0 - PIN0, 1 - PIN1, ...)
+/// second param: on g_time, third param: off g_time ... toggle so on </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_CHLS(char* str, write_func Write)
 {
-    int found = 0;
-
     if (newSettings) {
         needsCorrecting = 1;
         ClearSettings();
@@ -230,26 +329,28 @@ static void Function_CHLS(char* str, write_func Write)
             continue;
         }
 
+        ///////////////////////////////
         // Time is somewhere in between
+        ///////////////////////////////
 
-        found = 0;
-        for (int i_ent = 0; i_ent < g_num_of_entries; i_ent++) {
-            if (g_time_shadow[i_ent] == timeArray[i_el]) {
+        int found = 0;
+        for (int i = 0; i < g_num_of_entries; ++i) {
+            if (g_time_shadow[i] == timeArray[i_el]) {
                 // Time already exists
-                Update(chNum, i_el, g_time_shadow[i_ent], i_ent);
+                UpdatePinsArray(chNum, i_el, i);
                 found = 1;
                 break;
             }
         }
 
-        // Time does not exist, insert it into array
         if (!found) {
-            int idx = 0;
-            for (idx = 0; idx < g_num_of_entries; idx++)
-                if (g_time_shadow[idx] > timeArray[i_el])
+            for (int i = 0; i < g_num_of_entries; ++i) {
+                if (g_time_shadow[i] > timeArray[i_el]) {
+                    // Time does not exist, insert it into array
+                    Insert(chNum, i_el, timeArray[i_el], i);
                     break;
-
-            Insert(chNum, i_el, timeArray[i_el], idx);
+                }
+            }
         }
     }
 
@@ -262,6 +363,12 @@ static void Function_CHLS(char* str, write_func Write)
     Write((uint8_t*)buf, strlen(buf));
 }
 
+//---------------------------------------------------------------------
+/// <summary> Period GET. </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_PRDG(char* str, write_func Write)
 {
     char buf[30];
@@ -270,6 +377,15 @@ static void Function_PRDG(char* str, write_func Write)
     Write((uint8_t*)buf, strlen(buf));
 }
 
+//---------------------------------------------------------------------
+/// <summary> Export channel settings as text. </summary>
+///
+/// <param name="buf"> Pointer to buffer to put text into. </param>
+/// <param name="max_size"> Maximum size of buffer. </param>
+/// <param name="ch"> Channel to export. </param>
+///
+/// <returns> Number of written bytes. </returns>
+//---------------------------------------------------------------------
 static int WriteChannelSettings(char* buf, int max_size, int ch)
 {
     int written = 0;
@@ -290,6 +406,12 @@ static int WriteChannelSettings(char* buf, int max_size, int ch)
     return written;
 }
 
+//---------------------------------------------------------------------
+/// <summary> GET channel settings. </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_CHLG(char* str, write_func Write)
 {
     char buf[100];
@@ -314,6 +436,12 @@ static void Function_CHLG(char* str, write_func Write)
     Write((uint8_t*)buf, strlen(buf));
 }
 
+//---------------------------------------------------------------------
+/// <summary> GET all settings (period and all channels). </summary>
+///
+/// <param name="str"> Raw text with optional function arguments. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 static void Function_STTG(char* str, write_func Write)
 {
     char buf[500];
@@ -354,20 +482,27 @@ static struct {
     COMMAND(STTG), // GET ALL SETTINGS
 };
 
-/* Example program
-STOP
-PRDS,65000
-CHLS,0,140,240,32460,32560
-CHLS,5,490,502
-CHLS,6,752,762
-CHLS,2,32810,32830
-CHLS,3,33080,33100
-CHLS,7,100,220,470,13970,32420,32540,32790,46290
-CHLS,1,470,482,732,13982,32790,32810,33060,46560
-CHLS,4,1,32560
-STRT
-*/
-
+//---------------------------------------------------------------------
+/// <summary> Parse commands. </summary>
+///
+/// <example>
+/// Example program:
+/// STOP
+/// PRDS,65000
+/// CHLS,0,140,240,32460,32560
+/// CHLS,5,490,502
+/// CHLS,6,752,762
+/// CHLS,2,32810,32830
+/// CHLS,3,33080,33100
+/// CHLS,7,100,220,470,13970,32420,32540,32790,46290
+/// CHLS,1,470,482,732,13982,32790,32810,33060,46560
+/// CHLS,4,1,32560
+/// STRT
+/// </example>
+///
+/// <param name="string"> Raw command text. </param>
+/// <param name="Write"> Function pointer to a write function (UART, USB). </param>
+//---------------------------------------------------------------------
 void Parse(char* string, write_func Write)
 {
     char* str;
