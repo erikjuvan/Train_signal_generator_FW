@@ -3,9 +3,8 @@
 // STM HAL Library
 #include <stm32f7xx_hal.h>
 
-#define SWVER "STREAM_IAC_CU V1.1.0.0-devel"
-#define HWVER "N/A"
-#define COMPATIBILITYMODE "N/A"
+#define PROJECT_TITLE "STREAM_IAC_CU_FW"
+#define VERSION "v1.0.0.0"
 
 #define WritePins(port, on, off) port->BSRR = ((uint32_t)on) | (((uint32_t)off) << 16U)
 #define SetPins(port, x) port->BSRR = (uint32_t)x
