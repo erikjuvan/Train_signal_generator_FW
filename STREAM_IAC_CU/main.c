@@ -253,7 +253,7 @@ static void DMA_Configure()
 
     DMA_Stream2->NDTR = g_num_of_entries;
     DMA_Stream2->M0AR = (uint32_t)g_time;
-    DMA_Stream2->PAR  = (uint32_t)&TIMx->CCR4;
+    DMA_Stream2->PAR  = (uint32_t)&TIMx->CCR1;
     DMA_Stream2->CR   = DMA_CHANNEL_6 | DMA_MBURST_SINGLE | DMA_PBURST_SINGLE | DMA_PRIORITY_HIGH | DMA_SxCR_MSIZE_1 | DMA_SxCR_PSIZE_1 |
                       DMA_MINC_ENABLE | DMA_CIRCULAR | DMA_MEMORY_TO_PERIPH;
 }
